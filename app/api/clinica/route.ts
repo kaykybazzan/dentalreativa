@@ -10,7 +10,7 @@ export async function GET() {
 
   try {
     const result = await pool.query(
-      `SELECT c.id, c.nome, c.telefone, c.endereco, c."ticketMedio" as ticket_medio, c.especialidade
+      `SELECT c.id, c.nome, c.telefone, c.cidade, c."ticketMedio"
        FROM "Clinica" c
        INNER JOIN "Usuario" u ON u."clinicaId" = c.id
        WHERE u.email = $1`,
@@ -30,14 +30,14 @@ export async function PUT(req: Request) {
   }
 
   try {
-    const { nome, telefone, endereco, ticketMedio, especialidade } = await req.json()
+    const { nome, telefone, cidade, ticketMedio } = await req.json()
 
     await pool.query(
       `UPDATE "Clinica" c
-       SET nome = $1, telefone = $2, endereco = $3, "ticketMedio" = $4, especialidade = $5
+       SET nome = $1, telefone = $2, cidade = $3, "ticketMedio" = $4
        FROM "Usuario" u
-       WHERE u."clinicaId" = c.id AND u.email = $6`,
-      [nome, telefone, endereco, ticketMedio, especialidade, session.user.email]
+       WHERE u."clinicaId" = c.id AND u.email = $5`,
+      [nome, telefone, cidade, ticketMedio, session.user.email]
     )
 
     return Response.json({ success: true })

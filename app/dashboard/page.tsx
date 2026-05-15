@@ -147,8 +147,8 @@ export default function DashboardPage() {
 
   const userName = session?.user?.name || "Usuário"
   const userEmail = session?.user?.email || ""
-  const clinicName = session?.user?.clinicaNome || "Clínica"
-  const clinicCity = "" // Could be added to session if needed
+  const [clinicName, setClinicName] = useState("Carregando...")
+  const [clinicCity, setClinicCity] = useState("")
   const userRole = "Administrador"
   const userInitial = userName[0]?.toUpperCase() || "U"
 

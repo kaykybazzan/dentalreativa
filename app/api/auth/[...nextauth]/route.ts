@@ -1,4 +1,4 @@
-import NextAuth from 'next-auth'
+import NextAuth, { AuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import { Pool } from 'pg'
 import bcrypt from 'bcryptjs'
@@ -11,7 +11,7 @@ const pool = new Pool({
   password: 'bazzan01'
 })
 
-const authOptions = {
+const authOptions: AuthOptions = {
   providers: [
     CredentialsProvider({
       name: 'credentials',
@@ -49,14 +49,14 @@ const authOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.clinicaId = user.clinicaId
-        token.clinicaNome = user.clinicaNome
+        token.clinicaId = (user as any).clinicaId
+        token.clinicaNome = (user as any).clinicaNome
       }
       return token
     },
     async session({ session, token }) {
-      session.user.clinicaId = token.clinicaId
-      session.user.clinicaNome = token.clinicaNome
+      (session.user as any).clinicaId = token.clinicaId;
+      (session.user as any).clinicaNome = token.clinicaNome
       return session
     }
   },
@@ -64,7 +64,7 @@ const authOptions = {
     signIn: '/'
   },
   session: {
-    strategy: 'jwt'
+    strategy: 'jwt' as const
   },
   secret: process.env.NEXTAUTH_SECRET
 }

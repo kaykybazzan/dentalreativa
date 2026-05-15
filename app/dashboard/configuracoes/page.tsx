@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import Image from "next/image"
+import { useSession } from "next-auth/react"
 
 const navItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -46,9 +47,10 @@ const notifications = [
 
 export default function ConfiguracoesPage() {
   const router = useRouter()
-  const [clinicName, setClinicName] = useState("Clínica Sorriso Perfeito")
-  const [clinicCity, setClinicCity] = useState("São Paulo - SP")
-  const [userName, setUserName] = useState("Kayky")
+  const { data: session } = useSession()
+  const [clinicName, setClinicName] = useState("")
+  const [clinicCity, setClinicCity] = useState("")
+  const [userName, setUserName] = useState("")
   const [activeNav, setActiveNav] = useState("settings")
   const [showNotifications, setShowNotifications] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
@@ -93,15 +95,19 @@ export default function ConfiguracoesPage() {
 
       // Carregar dados da clínica
       fetch("/api/clinica")
-        .then((res) => res.json())
-        .then((data) => {
-          setFieldClinicName(data.nome ?? "")
-          setFieldPhone(data.telefone ?? "")
-          setFieldEndereco(data.endereco ?? "")
-          setFieldTicketMedio(data.ticket_medio?.toString() ?? "")
-          setFieldEspecialidade(data.especialidade ?? "")
-        })
-        .catch((error) => console.error("Erro ao carregar clínica:", error))
+      .then((res) => res.json())
+      .then((data) => {
+        setClinicName(data.nome ?? "")
+        setClinicCity(data.cidade ?? "")
+        setFieldClinicName(data.nome ?? "")
+        setFieldPhone(data.telefone ?? "")
+        setFieldCity(data.cidade ?? "")
+        setFieldTicketMedio(data.ticketMedio?.toString() ?? "")
+      })
+      .catch((error) => console.error("Erro ao carregar clínica:", error))
+
+      
+      if (session?.user?.name) setUserName(session.user.name.split(" ")[0])
 
       // Carregar mensagens
       fetch("/api/mensagens")
@@ -291,7 +297,7 @@ export default function ConfiguracoesPage() {
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/5 transition-colors"
             >
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white text-sm font-medium shrink-0">
-                {userName[0].toUpperCase()}
+                {userName?.[0]?.toUpperCase() ?? "U"}
               </div>
               <div className="flex-1 min-w-0 text-left">
                 <p className="text-sm font-medium text-white truncate">{userName}</p>

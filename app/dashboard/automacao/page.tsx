@@ -125,6 +125,14 @@ export default function AutomacaoPage() {
     showOnlyUnsent,
   ].filter(Boolean).length
 
+  fetch("/api/clinica")
+  .then((res) => res.json())
+  .then((data) => {
+    if (data?.nome) setClinicName(data.nome)
+    if (data?.cidade) setClinicCity(data.cidade)
+  })
+  .catch(() => {})
+
   const filteredAndSortedPatients = fila
     .filter((p) => {
       const enviado = enviados[p.id]
@@ -148,6 +156,33 @@ export default function AutomacaoPage() {
       // Use session data for clinic info
       if (session?.user?.name) setUserName(session.user.name?.split(" ")?.[0] ?? session.user.name)
       if (session?.user?.clinicaNome) setClinicName(session.user.clinicaNome)
+      
+          fetch("/api/clinica")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.nome) setClinicName(data.nome)
+        if (data?.cidade) setClinicCity(data.cidade)
+      })
+      .catch(() => {})
+
+          fetch("/api/clinica")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.nome) setClinicName(data.nome)
+        if (data?.cidade) setClinicCity(data.cidade)
+      })
+      .catch(() => {})
+
+      // Buscar nome real da clínica do banco — sempre sobrescreve o localStorage
+      fetch("/api/clinica")
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.nome) setClinicName(data.nome)
+          if (data?.cidade) setClinicCity(data.cidade)
+        })
+        .catch(() => {
+          // manter o valor do localStorage como fallback
+        })
       
       carregarFila()
     }

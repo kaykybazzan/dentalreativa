@@ -120,6 +120,17 @@ export default function ReportsPage() {
         }
       }
 
+      // Buscar nome real da clínica do banco — sempre sobrescreve o localStorage
+      fetch("/api/clinica")
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.nome) setClinicName(data.nome)
+          if (data?.cidade) setClinicCity(data.cidade)
+        })
+        .catch(() => {
+          // manter o valor do localStorage como fallback
+        })
+
       // Carregar dados dos relatórios
       fetch("/api/relatorios")
         .then((res) => res.json())

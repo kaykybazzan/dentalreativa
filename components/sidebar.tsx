@@ -30,22 +30,22 @@ export function Sidebar({
   const { data: session } = useSession()
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showProfileModal, setShowProfileModal] = useState(false)
-  const [clinica, setClinica] = useState<{ nome: string; endereco?: string } | null>(null)
+  const [clinica, setClinica] = useState<{ nome: string; cidade?: string } | null>(null)
 
-  useEffect(() => {
-    if (session?.user?.email) {
-      fetch("/api/clinica")
-        .then((res) => res.json())
-        .then((data) => setClinica(data))
-        .catch((err) => console.error("Erro ao buscar clínica:", err))
-    }
-  }, [session])
+ useEffect(() => {
+  if (session?.user?.email) {
+    fetch("/api/clinica")
+      .then((res) => res.json())
+      .then((data) => setClinica(data))
+      .catch((err) => console.error("Erro ao buscar clínica:", err))
+  }
+}, [session])
 
-  const userName = session?.user?.name || "Usuário"
-  const userEmail = session?.user?.email || ""
-  const clinicName = clinica?.nome || "Carregando..."
-  const clinicCity = clinica?.endereco || ""
-  const userInitial = userName[0]?.toUpperCase() || "U"
+const userName = session?.user?.name || "Usuário"
+const userEmail = session?.user?.email || ""
+const clinicName = clinica?.nome || "Carregando..."
+const clinicCity = clinica?.cidade || ""
+const userInitial = userName[0]?.toUpperCase() || "U"
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
