@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useMemo } from "react"
+import { useEffect, useState, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { 
   LayoutDashboard, 
@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { parsearArquivoPacientes } from "@/lib/parsearArquivoPacientes"
+import { aplicarRisco } from "@/lib/calcularRisco"
 
 type PatientStatus = "em_risco" | "contatado" | "aguardando" | "acompanhamento" | "confirmado" | "recuperado" | "perdido" | "ativo" | "em_contato" | "nao_contatar" | "sem_resposta"
 
@@ -143,7 +144,10 @@ export default function PatientsPage() {
   const [messageText, setMessageText] = useState("")
   const [csvFile, setCsvFile] = useState<File | null>(null)
   const [importSummary, setImportSummary] = useState<{ importados: number; duplicados: number; incompletos: number } | null>(null)
-  
+
+  // Refs
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   // Toast
   const [toast, setToast] = useState<{ show: boolean; message: string }>({ show: false, message: "" })
 
@@ -305,23 +309,28 @@ export default function PatientsPage() {
   // Filter and sort patients
   const filteredPatients = useMemo(() => {
     let result = [...patients]
-    
+
     // Search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase()
-      result = result.filter(p => 
-        p.name.toLowerCase().includes(query) || 
+      result = result.filter(p =>
+        p.name.toLowerCase().includes(query) ||
         p.phone.includes(query)
       )
     }
-    
+
     // Tab filter
     if (activeTab === "incompletos") {
       result = result.filter(p => p.dadosIncompletos)
+    } else if (activeTab === "em_risco") {
+      // Usar a mesma lógica de cálculo de risco que o dashboard
+      const pacientesComRisco = aplicarRisco(patients)
+      const idsEmRisco = new Set(pacientesComRisco.filter(p => p.nivelRisco !== "ok").map(p => String(p.id)))
+      result = result.filter(p => idsEmRisco.has(String(p.id)))
     } else if (activeTab !== "all") {
       result = result.filter(p => p.status === activeTab)
     }
-    
+
     // Sort
     if (sortField) {
       result.sort((a, b) => {
@@ -346,7 +355,13 @@ export default function PatientsPage() {
     const counts: Record<string, number> = { all: patients.length }
     tabFilters.forEach(tab => {
       if (tab.key !== "all") {
-        counts[tab.key] = patients.filter(p => p.status === tab.key).length
+        if (tab.key === "em_risco") {
+          // Usar a mesma lógica de cálculo de risco que o dashboard
+          const pacientesComRisco = aplicarRisco(patients)
+          counts[tab.key] = pacientesComRisco.filter(p => p.nivelRisco !== "ok").length
+        } else {
+          counts[tab.key] = patients.filter(p => p.status === tab.key).length
+        }
       }
     })
     return counts
@@ -494,6 +509,25 @@ export default function PatientsPage() {
         "Verifique se as colunas estão corretas: nome, telefone, ultima_consulta"
       )
     }
+  }
+
+  const handleBaixarModelo = () => {
+    const conteudo = [
+      "nome;telefone;ultima_consulta;valor_ticket",
+      "Maria Silva;47999999999;15/03/2024;300",
+      "João Santos;11988888888;20/01/2024;250"
+    ].join("\n")
+
+    const blob = new Blob(
+      ["\uFEFF" + conteudo],
+      { type: "text/csv;charset=utf-8;" }
+    )
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = "modelo_pacientes.csv"
+    link.click()
+    URL.revokeObjectURL(url)
   }
 
   function WhatsAppIcon({ className }: { className?: string }) {
@@ -696,46 +730,76 @@ export default function PatientsPage() {
       )}
 
       {/* Main Area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Search Bar */}
-        <div className="relative mb-4">
-          <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#64748B]" />
-          <Input 
-            placeholder="Buscar por nome ou telefone..." 
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-12 h-11 bg-white border-[#E2E8F0] text-sm rounded-lg focus:border-[#0F3460] focus:ring-[#0F3460]/20"
-          />
+      <div className="flex-1 flex flex-col overflow-hidden p-6">
+        {/* Título e subtítulo da página (fora do card) */}
+        <div className="mb-4">
+          <h1 className="text-2xl font-bold text-[#1E293B]">Pacientes</h1>
+          <p className="text-sm text-[#64748B] mt-1">Gerencie sua base de pacientes e acompanhe o retorno</p>
         </div>
 
-        {/* Filter Tabs */}
-        <div className="flex items-center gap-1 border-b border-[#E2E8F0] mb-6 overflow-x-auto">
-          {tabFilters.map((tab) => {
-            const isActive = activeTab === tab.key
-            const count = tabCounts[tab.key] || 0
-            const isRisk = tab.key === "em_risco"
-            
-            return (
-              <button
-                key={tab.key}
-                onClick={() => { setActiveTab(tab.key); setCurrentPage(1) }}
-                className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-[1px] ${
-                  isActive 
-                    ? "text-[#0F3460] border-[#0F3460]" 
-                    : "text-[#64748B] border-transparent hover:text-[#1E293B]"
-                }`}
+        {/* Card container branco com borda */}
+        <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm flex-1 flex flex-col">
+          {/* LINHA 1: Título + botões de ação */}
+          <div className="flex items-center justify-between px-6 pt-6 mb-4">
+            <h2 className="text-lg font-semibold text-[#1E293B]">Lista de pacientes</h2>
+            <div className="flex items-center gap-3">
+              <Button 
+                onClick={() => setShowImportModal(true)}
+                variant="outline"
+                className="h-10 px-4 border-[#E2E8F0] text-[#1E293B] hover:bg-[#F8FAFC]"
               >
-                {tab.label} <span className={isRisk && !isActive ? "text-[#EF4444]" : ""}>({count})</span>
-              </button>
-            )
-          })}
-        </div>
+                <Upload className="h-4 w-4 mr-2" />
+                Importar pacientes
+              </Button>
+              <Button 
+                onClick={() => setShowAddModal(true)}
+                className="h-10 px-4 bg-[#0F3460] hover:bg-[#0F3460]/90 text-white"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Novo paciente
+              </Button>
+            </div>
+          </div>
 
-        {/* Table Card */}
-        <div className="bg-white rounded-xl border border-[#E2E8F0] shadow-sm">
+          {/* LINHA 2: Barra de busca (largura total) */}
+          <div className="px-6 mb-4">
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#64748B]" />
+              <Input 
+                placeholder="Buscar por nome ou telefone..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-12 h-11 bg-white border-[#E2E8F0] text-sm rounded-lg focus:border-[#0F3460] focus:ring-[#0F3460]/20"
+              />
+            </div>
+          </div>
+
+          {/* LINHA 3: Abas de filtro */}
+          <div className="px-6 flex items-center gap-1 border-b border-[#E2E8F0] mb-6 overflow-x-auto">
+            {tabFilters.map((tab) => {
+              const isActive = activeTab === tab.key
+              const count = tabCounts[tab.key] || 0
+              const isRisk = tab.key === "em_risco"
+              
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => { setActiveTab(tab.key); setCurrentPage(1) }}
+                  className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-[1px] ${
+                    isActive 
+                      ? "text-[#0F3460] border-[#0F3460]" 
+                      : "text-[#64748B] border-transparent hover:text-[#1E293B]"
+                  }`}
+                >
+                  {tab.label} <span className={isRisk && !isActive ? "text-[#EF4444]" : ""}>({count})</span>
+                </button>
+              )
+            })}
+          </div>
+
           {/* Bulk Selection Bar */}
           {selectedPatients.length > 0 && (
-            <div className="bg-[#EFF6FF] border-b border-[#BFDBFE] px-4 py-3 flex items-center justify-between">
+            <div className="bg-[#EFF6FF] border-b border-[#BFDBFE] px-6 py-3 flex items-center justify-between">
               <span className="text-sm text-[#1D4ED8] font-medium">
                 {selectedPatients.length} pacientes selecionados
               </span>
@@ -754,7 +818,7 @@ export default function PatientsPage() {
           )}
 
           {/* Table */}
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto px-6">
             <table className="w-full">
               <thead>
                 <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
@@ -932,10 +996,13 @@ export default function PatientsPage() {
             </div>
             <div>
               <label className="text-sm font-medium text-[#1E293B] mb-1.5 block">Data da última consulta *</label>
-              <div className="relative">
-                <Input placeholder="DD/MM/AAAA" value={newPatient.lastVisit} onChange={(e) => setNewPatient(prev => ({ ...prev, lastVisit: e.target.value }))} className="h-11 pr-10" />
-                <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#64748B]" />
-              </div>
+              <input
+                type="date"
+                value={newPatient.lastVisit}
+                onChange={(e) => setNewPatient(prev => ({ ...prev, lastVisit: e.target.value }))}
+                max={new Date().toISOString().split("T")[0]}
+                className="w-full h-11 px-3 rounded-lg border border-[#E2E8F0] text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#0F3460] focus:border-transparent"
+              />
             </div>
             <div className="flex justify-between pt-4">
               <Button variant="outline" onClick={() => setShowAddModal(false)} className="border-[#E2E8F0] text-[#64748B]">Cancelar</Button>
@@ -985,12 +1052,25 @@ export default function PatientsPage() {
             <DialogTitle className="text-xl font-bold text-[#1E293B]">Importar pacientes</DialogTitle>
           </DialogHeader>
           <div className="p-6 space-y-4">
-            <div className="border-2 border-dashed border-[#E2E8F0] rounded-xl p-8 text-center hover:bg-[#F8FAFC] transition-colors">
-              <Upload className="h-10 w-10 text-[#64748B] mx-auto mb-3" />
-              <p className="text-sm text-[#64748B] font-medium">Arraste o arquivo aqui</p>
-              <p className="text-xs text-[#94A3B8] mt-1">ou clique para selecionar</p>
-              <p className="text-xs text-[#94A3B8] mt-3">Aceita CSV e Excel</p>
-              <input type="file" accept=".csv,.xlsx,.xls" onChange={(e) => setCsvFile(e.target.files?.[0] || null)} className="mt-4" />
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className="border-2 border-dashed border-[#E2E8F0] rounded-xl p-10 text-center cursor-pointer hover:border-[#0F3460] hover:bg-[#F8FAFC] transition-colors"
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                className="hidden"
+                onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
+              />
+              <div className="flex flex-col items-center gap-2">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F1F5F9]">
+                  <Upload className="h-6 w-6 text-[#64748B]" />
+                </div>
+                <p className="text-sm font-medium text-[#1E293B]">Clique para selecionar o arquivo</p>
+                <p className="text-xs text-[#64748B]">ou arraste e solte aqui</p>
+                <p className="text-xs text-[#94A3B8]">Aceita CSV e Excel (.xlsx)</p>
+              </div>
               {csvFile && <p className="text-sm text-[#0F3460] mt-2 font-medium">{csvFile?.name}</p>}
               {importSummary && (
                 <div className="mt-4 p-3 bg-[#F0FDF4] rounded-lg text-sm">
@@ -1001,7 +1081,7 @@ export default function PatientsPage() {
                 </div>
               )}
             </div>
-            <button className="flex items-center justify-center gap-2 text-sm text-[#0F3460] font-medium hover:underline">
+            <button onClick={handleBaixarModelo} className="flex items-center justify-center gap-2 text-sm text-[#0F3460] font-medium hover:underline">
               <Download className="h-4 w-4" />
               Baixar modelo de planilha
             </button>

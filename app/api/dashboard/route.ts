@@ -3,13 +3,23 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 import { pool } from "@/lib/db"
 import { aplicarRisco } from "@/lib/calcularRisco"
 
-export async function GET() {
+export async function GET(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.email) {
     return Response.json({ error: "Não autorizado" }, { status: 401 })
   }
 
   try {
+    const { searchParams } = new URL(req.url)
+    const periodo = searchParams.get("periodo") || "30"
+
+    // Mapear período para intervalo SQL
+    const intervaloMap: Record<string, string> = {
+      "7": "7 days",
+      "30": "30 days",
+      "90": "90 days",
+    }
+    const intervalo = intervaloMap[periodo] || "30 days"
     // Buscar todos os pacientes da clínica
     const result = await pool.query(
       `SELECT p.* FROM "Paciente" p
@@ -56,16 +66,17 @@ export async function GET() {
       valorTicket: p.valorTicket > 0 ? p.valorTicket : ticketMedio,
     }))
 
-    // Dados para o gráfico de evolução (últimos 6 meses)
+    // Dados para o gráfico de evolução (filtrado por período)
     const grafico = await pool.query(
-      `SELECT 
-         TO_CHAR(DATE_TRUNC('month', p."ultimaConsulta"), 'Mon/YY') as mes,
-         COUNT(*) as total
+      `SELECT
+         TO_CHAR(DATE_TRUNC('month', p."ultimaConsulta"), 'Mon/YY') as month,
+         COUNT(*) FILTER (WHERE p.status = 'em_risco' OR p.status = 'contatado' OR p.status = 'aguardando_resposta') as emRisco,
+         COUNT(*) FILTER (WHERE p.status = 'recuperado') as recuperados
        FROM "Paciente" p
        INNER JOIN "Clinica" c ON c.id = p."clinicaId"
        INNER JOIN "Usuario" u ON u."clinicaId" = c.id
        WHERE u.email = $1
-         AND p."ultimaConsulta" >= NOW() - INTERVAL '6 months'
+         AND p."ultimaConsulta" >= NOW() - INTERVAL '${intervalo}'
        GROUP BY DATE_TRUNC('month', p."ultimaConsulta")
        ORDER BY DATE_TRUNC('month', p."ultimaConsulta") ASC`,
       [session.user.email]

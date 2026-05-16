@@ -64,7 +64,6 @@ export default function ConfiguracoesPage() {
   const [fieldCity, setFieldCity] = useState("")
   const [fieldPhone, setFieldPhone] = useState("")
   const [fieldEspecialidade, setFieldEspecialidade] = useState("")
-  const [fieldEndereco, setFieldEndereco] = useState("")
   const [fieldTicketMedio, setFieldTicketMedio] = useState("")
 
   // WhatsApp fields
@@ -161,7 +160,7 @@ export default function ConfiguracoesPage() {
         body: JSON.stringify({
           nome: fieldClinicName,
           telefone: fieldPhone,
-          endereco: fieldEndereco,
+          cidade: fieldCity,
           ticketMedio: fieldTicketMedio,
           especialidade: fieldEspecialidade,
         }),
@@ -470,27 +469,29 @@ export default function ConfiguracoesPage() {
 
         {/* Content */}
         <main className="flex-1 overflow-y-auto p-6">
-          {/* Tabs */}
-          <div className="flex gap-0 border-b border-[#E2E8F0] mb-6">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors -mb-px ${
-                  activeTab === tab.id
-                    ? "border-[#0F3460] text-[#0F3460]"
-                    : "border-transparent text-[#64748B] hover:text-[#1E293B]"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+          <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm">
+            {/* Tabs */}
+            <div className="flex gap-0 border-b border-[#E2E8F0] px-6">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors -mb-px ${
+                    activeTab === tab.id
+                      ? "border-[#0F3460] text-[#0F3460]"
+                      : "border-transparent text-[#64748B] hover:text-[#1E293B]"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
 
-          {/* TAB 1 — Clínica */}
-          {activeTab === "clinica" && (
-            <div className="max-w-2xl">
-              <div className="bg-white rounded-xl border border-[#E2E8F0] p-6">
+            <div className="p-6">
+              {/* TAB 1 — Clínica */}
+              {activeTab === "clinica" && (
+                <div className="max-w-2xl">
+                  <div className="bg-white rounded-xl border border-[#E2E8F0] p-6">
                 <h2 className="text-base font-bold text-[#1E293B] mb-1">Dados da clínica</h2>
                 <p className="text-sm text-[#64748B] mb-6">Essas informações aparecem nas mensagens enviadas aos pacientes.</p>
 
@@ -509,16 +510,16 @@ export default function ConfiguracoesPage() {
                     </div>
                   </div>
 
-                  {/* Endereço */}
+                  {/* Cidade */}
                   <div>
-                    <label className="block text-sm font-medium text-[#1E293B] mb-1.5">Endereço</label>
+                    <label className="block text-sm font-medium text-[#1E293B] mb-1.5">Cidade</label>
                     <div className="relative">
                       <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#94A3B8]" />
                       <Input
                         className={`pl-9 ${inputStyle}`}
-                        placeholder="Endereço da clínica"
-                        value={fieldEndereco}
-                        onChange={(e) => setFieldEndereco(e.target.value)}
+                        placeholder="Cidade da clínica"
+                        value={fieldCity}
+                        onChange={(e) => setFieldCity(e.target.value)}
                       />
                     </div>
                   </div>
@@ -694,6 +695,8 @@ export default function ConfiguracoesPage() {
               </div>
             </div>
           )}
+            </div>
+          </div>
         </main>
       </div>
     </div>

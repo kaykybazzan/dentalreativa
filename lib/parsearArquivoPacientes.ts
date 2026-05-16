@@ -4,6 +4,7 @@ export interface PacienteImportado {
   nome: string;
   telefone: string;
   ultimaConsulta: string | null;
+  valorTicket: number | null;
 }
 
 // Converte data de qualquer formato para AAAA-MM-DD
@@ -147,6 +148,17 @@ export async function parsearArquivoPacientes(
 
       const ultimaConsulta = normalizarData(dataRaw);
 
-      return { nome: String(nome).trim(), telefone, ultimaConsulta };
+      // Buscar valor ticket — aceitar variações
+      const valorRaw =
+        linhaNormalizada["valor_ticket"] ||
+        linhaNormalizada["valor"] ||
+        linhaNormalizada["ticket"] ||
+        linhaNormalizada["valor_ultima_consulta"] ||
+        linhaNormalizada["valorultimaconsulta"] ||
+        "";
+
+      const valorTicket = valorRaw ? parseFloat(String(valorRaw).replace(/[^\d.,]/g, "").replace(",", ".")) || null : null;
+
+      return { nome: String(nome).trim(), telefone, ultimaConsulta, valorTicket };
     });
 }

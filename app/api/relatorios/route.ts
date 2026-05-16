@@ -3,13 +3,34 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { pool } from "@/lib/db";
 import { aplicarRisco } from "@/lib/calcularRisco";
 
-export async function GET() {
+export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) {
     return Response.json({ error: "Não autorizado" }, { status: 401 });
   }
 
   try {
+    const { searchParams } = new URL(req.url)
+    const periodo = searchParams.get("periodo") || "30d"
+    const dataInicio = searchParams.get("dataInicio")
+    const dataFim = searchParams.get("dataFim")
+
+    // Mapear período para intervalo SQL
+    const intervaloMap: Record<string, string> = {
+      "7d": "7 days",
+      "30d": "30 days",
+      "90d": "90 days",
+    }
+
+    // Se for período custom com datas específicas, usar as datas
+    let filtroPeriodo = ""
+    if (periodo === "custom" && dataInicio && dataFim) {
+      filtroPeriodo = `AND ca."criadoEm" >= '${dataInicio}' AND ca."criadoEm" <= '${dataFim}'`
+    } else {
+      const intervalo = intervaloMap[periodo] || "30 days"
+      filtroPeriodo = `AND ca."criadoEm" >= NOW() - INTERVAL '${intervalo}'`
+    }
+
     // Buscar ticket médio da clínica para fallback
     const clinicaResult = await pool.query(
       `SELECT c.id, c."ticketMedio" FROM "Clinica" c
@@ -87,16 +108,16 @@ export async function GET() {
       : "0.0";
 
     // ── EVOLUÇÃO MENSAL ──────────────────────────────────────
-    // Quantos pacientes foram recuperados por mês nos últimos 6 meses
+    // Quantos pacientes foram recuperados por mês no período selecionado
     const evolucaoMensal = await pool.query(
-      `SELECT 
+      `SELECT
          TO_CHAR(DATE_TRUNC('month', ca."criadoEm"), 'Mon/YY') as mes,
          DATE_TRUNC('month', ca."criadoEm") as mes_ordem,
          COUNT(*) FILTER (WHERE ca.resultado = 'recuperado') as recuperados,
          COUNT(*) as total_envios
        FROM "ContactAttempt" ca
        WHERE ca."clinicaId" = $1
-         AND ca."criadoEm" >= NOW() - INTERVAL '6 months'
+         ${filtroPeriodo}
        GROUP BY DATE_TRUNC('month', ca."criadoEm")
        ORDER BY DATE_TRUNC('month', ca."criadoEm") ASC`,
       [clinicaId]

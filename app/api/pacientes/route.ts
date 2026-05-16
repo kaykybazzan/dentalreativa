@@ -31,7 +31,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { nome, telefone, ultimaConsulta } = await req.json()
+    const { nome, telefone, ultimaConsulta, valor_ticket } = await req.json()
 
     // Buscar clinica_id
     const clinicaResult = await pool.query(
@@ -61,10 +61,13 @@ export async function POST(req: Request) {
       return Response.json({ error: "Paciente com esse telefone já existe" }, { status: 409 })
     }
 
+    // Converter valor_ticket para número se vier como string
+    const valorUltimaConsulta = valor_ticket ? parseFloat(String(valor_ticket)) : null
+
     await pool.query(
-      `INSERT INTO "Paciente" ("clinicaId", nome, telefone, "ultimaConsulta", "dadosIncompletos", status)
-       VALUES ($1, $2, $3, $4, $5, 'ativo')`,
-      [clinicaId, nome, telefoneLimpo, ultimaConsulta || null, dadosIncompletos]
+      `INSERT INTO "Paciente" ("clinicaId", nome, telefone, "ultimaConsulta", "valorUltimaConsulta", "dadosIncompletos", status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'ativo')`,
+      [clinicaId, nome, telefoneLimpo, ultimaConsulta || null, valorUltimaConsulta, dadosIncompletos]
     )
 
     return Response.json({ success: true })

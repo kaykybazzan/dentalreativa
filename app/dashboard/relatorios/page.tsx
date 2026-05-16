@@ -88,6 +88,7 @@ export default function ReportsPage() {
   // Custom period picker
   const [showCustomPicker, setShowCustomPicker] = useState(false)
   const [customPeriodLabel, setCustomPeriodLabel] = useState<string | null>(null)
+  const [customPeriodDates, setCustomPeriodDates] = useState<{ from: string; to: string } | null>(null)
 
   // Chart toggles
   const [showContatados, setShowContatados] = useState(true)
@@ -132,7 +133,11 @@ export default function ReportsPage() {
         })
 
       // Carregar dados dos relatórios
-      fetch("/api/relatorios")
+      let url = `/api/relatorios?periodo=${period}`
+      if (period === "custom" && customPeriodDates) {
+        url += `&dataInicio=${customPeriodDates.from}&dataFim=${customPeriodDates.to}`
+      }
+      fetch(url)
         .then((res) => res.json())
         .then((data) => {
           setDados(data)
@@ -140,7 +145,7 @@ export default function ReportsPage() {
         })
         .catch(() => setCarregando(false))
     }
-  }, [router])
+  }, [router, period, customPeriodDates])
 
   const handleLogout = () => {
     localStorage.removeItem("onboarding_done")
@@ -208,6 +213,7 @@ export default function ReportsPage() {
     const fromShort = from.slice(0, 5)
     const toShort = to.slice(0, 5)
     setCustomPeriodLabel(`${fromShort} - ${toShort}`)
+    setCustomPeriodDates({ from, to })
     setPeriod("custom")
     setShowCustomPicker(false)
   }
@@ -441,52 +447,11 @@ export default function ReportsPage() {
       {/* Main Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="h-16 bg-white border-b border-[#E2E8F0] flex items-center justify-between px-7 shrink-0">
-          <div>
+        <header className="bg-white border-b border-[#E2E8F0] px-7 py-4 shrink-0">
+          {/* LINHA 1: Título + sino de notificações */}
+          <div className="flex items-center justify-between mb-4">
             <h1 className="text-2xl font-bold text-[#1E293B]">Relatórios</h1>
-            <p className="text-sm text-[#64748B]">Entenda o que está funcionando e onde está o dinheiro da sua clínica</p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {/* Period Filter */}
-            <div className="flex items-center gap-1">
-              {(["7d", "30d", "90d"] as const).map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setPeriod(p)}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                    period === p
-                      ? "bg-[#0F3460] text-white"
-                      : "bg-white text-[#64748B] border border-[#E2E8F0] hover:bg-[#F8FAFC]"
-                  }`}
-                >
-                  {p === "7d" ? "7 dias" : p === "30d" ? "30 dias" : "90 dias"}
-                </button>
-              ))}
-              <div className="relative" ref={customPickerRef}>
-                <button
-                  onClick={() => setShowCustomPicker(!showCustomPicker)}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-lg flex items-center gap-1.5 transition-colors ${
-                    period === "custom"
-                      ? "bg-[#0F3460] text-white"
-                      : "bg-white text-[#64748B] border border-[#E2E8F0] hover:bg-[#F8FAFC]"
-                  }`}
-                >
-                  <Calendar className="h-4 w-4" />
-                  {period === "custom" && customPeriodLabel ? customPeriodLabel : "Personalizado"}
-                </button>
-
-                {showCustomPicker && (
-                  <div className="absolute right-0 top-full mt-2 z-[9999]">
-                    <DateRangePicker
-                      onApply={handleCustomPeriodApply}
-                      onCancel={handleCustomPeriodCancel}
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-
+            
             {/* Notification Bell */}
             <div className="relative">
               <button
@@ -530,6 +495,50 @@ export default function ReportsPage() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* LINHA 2: Subtítulo + filtros de período */}
+          <div className="flex items-center justify-between mb-6">
+            <p className="text-sm text-[#64748B]">Entenda o que está funcionando e onde está o dinheiro da sua clínica</p>
+
+            {/* Period Filter */}
+            <div className="flex items-center gap-1">
+              {(["7d", "30d", "90d"] as const).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setPeriod(p)}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                    period === p
+                      ? "bg-[#0F3460] text-white"
+                      : "bg-white text-[#64748B] border border-[#E2E8F0] hover:bg-[#F8FAFC]"
+                  }`}
+                >
+                  {p === "7d" ? "7 dias" : p === "30d" ? "30 dias" : "90 dias"}
+                </button>
+              ))}
+              <div className="relative" ref={customPickerRef}>
+                <button
+                  onClick={() => setShowCustomPicker(!showCustomPicker)}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-lg flex items-center gap-1.5 transition-colors ${
+                    period === "custom"
+                      ? "bg-[#0F3460] text-white"
+                      : "bg-white text-[#64748B] border border-[#E2E8F0] hover:bg-[#F8FAFC]"
+                  }`}
+                >
+                  <Calendar className="h-4 w-4" />
+                  {period === "custom" && customPeriodLabel ? customPeriodLabel : "Personalizado"}
+                </button>
+
+                {showCustomPicker && (
+                  <div className="absolute right-0 top-full mt-2 z-[9999]">
+                    <DateRangePicker
+                      onApply={handleCustomPeriodApply}
+                      onCancel={handleCustomPeriodCancel}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </header>

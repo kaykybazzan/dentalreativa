@@ -125,14 +125,6 @@ export default function AutomacaoPage() {
     showOnlyUnsent,
   ].filter(Boolean).length
 
-  fetch("/api/clinica")
-  .then((res) => res.json())
-  .then((data) => {
-    if (data?.nome) setClinicName(data.nome)
-    if (data?.cidade) setClinicCity(data.cidade)
-  })
-  .catch(() => {})
-
   const filteredAndSortedPatients = fila
     .filter((p) => {
       const enviado = enviados[p.id]
@@ -152,26 +144,10 @@ export default function AutomacaoPage() {
         return
       }
       setActiveNav("automation")
-      
+
       // Use session data for clinic info
       if (session?.user?.name) setUserName(session.user.name?.split(" ")?.[0] ?? session.user.name)
       if (session?.user?.clinicaNome) setClinicName(session.user.clinicaNome)
-      
-          fetch("/api/clinica")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data?.nome) setClinicName(data.nome)
-        if (data?.cidade) setClinicCity(data.cidade)
-      })
-      .catch(() => {})
-
-          fetch("/api/clinica")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data?.nome) setClinicName(data.nome)
-        if (data?.cidade) setClinicCity(data.cidade)
-      })
-      .catch(() => {})
 
       // Buscar nome real da clínica do banco — sempre sobrescreve o localStorage
       fetch("/api/clinica")
@@ -183,7 +159,7 @@ export default function AutomacaoPage() {
         .catch(() => {
           // manter o valor do localStorage como fallback
         })
-      
+
       carregarFila()
     }
   }, [router, session])
@@ -543,41 +519,46 @@ export default function AutomacaoPage() {
       <div className="flex-1 flex flex-col overflow-hidden">
 
         {/* Header */}
-        <header className="h-16 bg-white border-b border-[#E2E8F0] flex items-center justify-between px-6 shrink-0">
-          <div>
-            <h1 className="text-lg font-bold text-[#1E293B]">Central de Envios</h1>
-            <p className="text-xs text-[#64748B]">Veja quem precisa de contato hoje e envie mensagens com 1 clique pelo WhatsApp.</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#94A3B8]" />
-              <input
-                placeholder="Buscar pacientes..."
-                className="h-9 w-56 pl-9 pr-3 rounded-lg border border-[#E2E8F0] text-sm bg-[#F8FAFC] text-[#1E293B] placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[rgba(15,52,96,0.12)] focus:border-[#0F3460]"
-              />
-            </div>
-            <div className="relative">
-              <button
-                onClick={() => setShowNotifications(!showNotifications)}
-                className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-[#E2E8F0] bg-white text-[#64748B] hover:bg-[#F8FAFC] transition-colors"
-              >
-                <Bell className="h-4 w-4" />
-                <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-[#EF4444]" />
-              </button>
-              {showNotifications && (
-                <div className="absolute right-0 top-11 z-50 w-72 rounded-xl border border-[#E2E8F0] bg-white shadow-lg">
-                  <div className="p-3 border-b border-[#E2E8F0]">
-                    <p className="text-sm font-semibold text-[#1E293B]">Notificações</p>
-                  </div>
-                  {notifications.map((n) => (
-                    <div key={n.id} className="p-3 border-b border-[#E2E8F0] last:border-0 hover:bg-[#F8FAFC] cursor-pointer">
-                      <p className="text-sm text-[#1E293B]">{n.text}</p>
-                      <p className="text-xs text-[#94A3B8] mt-0.5">{n.time}</p>
+        <header className="bg-white border-b border-[#E2E8F0] px-6 py-4 shrink-0">
+          {/* LINHA 1: Título + busca + sino */}
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-2xl font-bold text-[#1E293B]">Central de Envios</h1>
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#94A3B8]" />
+                <input
+                  placeholder="Buscar pacientes..."
+                  className="h-9 w-56 pl-9 pr-3 rounded-lg border border-[#E2E8F0] text-sm bg-[#F8FAFC] text-[#1E293B] placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[rgba(15,52,96,0.12)] focus:border-[#0F3460]"
+                />
+              </div>
+              <div className="relative">
+                <button
+                  onClick={() => setShowNotifications(!showNotifications)}
+                  className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-[#E2E8F0] bg-white text-[#64748B] hover:bg-[#F8FAFC] transition-colors"
+                >
+                  <Bell className="h-4 w-4" />
+                  <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-[#EF4444]" />
+                </button>
+                {showNotifications && (
+                  <div className="absolute right-0 top-11 z-50 w-72 rounded-xl border border-[#E2E8F0] bg-white shadow-lg">
+                    <div className="p-3 border-b border-[#E2E8F0]">
+                      <p className="text-sm font-semibold text-[#1E293B]">Notificações</p>
                     </div>
-                  ))}
-                </div>
-              )}
+                    {notifications.map((n) => (
+                      <div key={n.id} className="p-3 border-b border-[#E2E8F0] last:border-0 hover:bg-[#F8FAFC] cursor-pointer">
+                        <p className="text-sm text-[#1E293B]">{n.text}</p>
+                        <p className="text-xs text-[#94A3B8] mt-0.5">{n.time}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
+          </div>
+
+          {/* LINHA 2: Subtítulo */}
+          <div className="mb-6">
+            <p className="text-sm text-[#64748B]">Veja quem precisa de contato hoje e envie mensagens com 1 clique pelo WhatsApp.</p>
           </div>
         </header>
 

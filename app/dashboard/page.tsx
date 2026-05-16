@@ -144,6 +144,7 @@ export default function DashboardPage() {
   const [showSearchDropdown, setShowSearchDropdown] = useState(false)
   const [dados, setDados] = useState<any>(null)
   const [carregando, setCarregando] = useState(true)
+  const [periodoSelecionado, setPeriodoSelecionado] = useState("90")
 
   const userName = session?.user?.name || "Usuário"
   const userEmail = session?.user?.email || ""
@@ -164,14 +165,14 @@ export default function DashboardPage() {
   }, [router])
 
   useEffect(() => {
-    fetch("/api/dashboard")
+    fetch(`/api/dashboard?periodo=${periodoSelecionado}`)
       .then((res) => res.json())
       .then((data) => {
         setDados(data)
         setCarregando(false)
       })
       .catch(() => setCarregando(false))
-  }, [])
+  }, [periodoSelecionado])
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -371,8 +372,9 @@ export default function DashboardPage() {
         <main className="flex-1 overflow-auto p-6">
           <AlertaConfiguracao />
           
-          {/* Alert Banner */}
-          <div className="bg-[#EFF6FF] border border-[#BFDBFE] rounded-xl p-4 mb-6 flex items-center gap-3">
+          <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm p-6">
+            {/* Alert Banner */}
+            <div className="bg-[#EFF6FF] border border-[#BFDBFE] rounded-xl p-4 mb-6 flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#3B82F6]/10">
               <TrendingUp className="h-5 w-5 text-[#3B82F6]" />
             </div>
@@ -390,11 +392,7 @@ export default function DashboardPage() {
                   <p className="text-sm text-[#64748B]">Pacientes em risco</p>
                   <p className="text-3xl font-semibold text-[#1E293B] mt-2">{carregando ? "..." : dados?.cards?.emRisco ?? 0}</p>
                   <div className="mt-2">
-                    <p className="text-sm text-[#EF4444] flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-[#EF4444]" />
-                      +5 novos hoje
-                    </p>
-                    <p className="text-xs text-[#64748B] mt-0.5">desde ontem</p>
+                    <p className="text-xs text-[#64748B] mt-0.5">pacientes identificados</p>
                   </div>
                 </div>
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#FEF2F2]">
@@ -410,8 +408,7 @@ export default function DashboardPage() {
                   <p className="text-sm text-[#64748B]">Aguardando resposta</p>
                   <p className="text-3xl font-semibold text-[#1E293B] mt-2">{carregando ? "..." : dados?.cards?.totalPacientes ?? 0}</p>
                   <div className="mt-2">
-                    <p className="text-sm text-[#F59E0B]">oportunidades abertas</p>
-                    <p className="text-xs text-[#64748B] mt-0.5">podem esfriar em breve</p>
+                    <p className="text-xs text-[#64748B] mt-0.5">total de pacientes</p>
                   </div>
                 </div>
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#FFF7ED]">
@@ -427,11 +424,7 @@ export default function DashboardPage() {
                   <p className="text-sm text-[#64748B]">Contatados este mês</p>
                   <p className="text-3xl font-semibold text-[#1E293B] mt-2">{carregando ? "..." : dados?.cards?.recuperados ?? 0}</p>
                   <div className="mt-2">
-                    <p className="text-sm text-[#10B981] flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-[#10B981]" />
-                      14 responderam
-                    </p>
-                    <p className="text-xs text-[#64748B] mt-0.5">taxa de resposta 45%</p>
+                    <p className="text-xs text-[#64748B] mt-0.5">pacientes recuperados</p>
                   </div>
                 </div>
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#EFF6FF]">
@@ -447,8 +440,7 @@ export default function DashboardPage() {
                   <p className="text-sm text-[#64748B]">Receita recuperada</p>
                   <p className="text-3xl font-semibold text-[#1E293B] mt-2">{carregando ? "..." : `R$ ${dados?.cards?.receitaEmRisco?.toLocaleString("pt-BR", { minimumFractionDigits: 2 }) ?? "0,00"}`}</p>
                   <div className="mt-2">
-                    <p className="text-sm text-[#10B981]">este mês</p>
-                    <p className="text-xs text-[#64748B] mt-0.5">11 pacientes voltaram</p>
+                    <p className="text-xs text-[#64748B] mt-0.5">receita em risco identificada</p>
                   </div>
                 </div>
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#F0FDF4]">
@@ -465,14 +457,14 @@ export default function DashboardPage() {
                 <h3 className="text-base font-medium text-[#1E293B]">Pacientes em risco ao longo do tempo</h3>
                 <HelpCircle className="h-3.5 w-3.5 text-[#94A3B8]" />
               </div>
-              <Select defaultValue="6months">
+              <Select value={periodoSelecionado} onValueChange={setPeriodoSelecionado}>
                 <SelectTrigger className="w-40 h-9 text-sm border-[#E2E8F0]">
                   <SelectValue placeholder="Selecionar período" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="6months">Últimos 6 meses</SelectItem>
-                  <SelectItem value="3months">Últimos 3 meses</SelectItem>
-                  <SelectItem value="1year">Último ano</SelectItem>
+                  <SelectItem value="7">Últimos 7 dias</SelectItem>
+                  <SelectItem value="30">Últimos 30 dias</SelectItem>
+                  <SelectItem value="90">Últimos 90 dias</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -615,6 +607,7 @@ export default function DashboardPage() {
                 <ChevronDown className="h-4 w-4" />
               </button>
             </div>
+          </div>
           </div>
         </main>
       </div>

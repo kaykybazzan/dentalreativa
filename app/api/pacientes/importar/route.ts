@@ -74,15 +74,19 @@ export async function POST(req: Request) {
         }
       }
 
+      // Converter valorTicket para número se vier como string
+      const valorTicket = p.valorTicket ? parseFloat(String(p.valorTicket)) : null
+
       // Inserir com data como null se inválida — nunca enviar string inválida para o banco
       await pool.query(
-        `INSERT INTO "Paciente" ("clinicaId", nome, telefone, "ultimaConsulta", "dadosIncompletos", status)
-         VALUES ($1, $2, $3, $4::date, $5, 'ativo')`,
+        `INSERT INTO "Paciente" ("clinicaId", nome, telefone, "ultimaConsulta", "valorUltimaConsulta", "dadosIncompletos", status)
+         VALUES ($1, $2, $3, $4::date, $5, $6, 'ativo')`,
         [
           clinicaId,
           nomeValido || "Sem nome",
           telefoneLimpo || null,
           dataValida,  // null se inválida — o banco aceita null em campo date
+          valorTicket,
           dadosIncompletos,
         ]
       )
