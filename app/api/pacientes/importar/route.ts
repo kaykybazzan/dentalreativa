@@ -41,8 +41,13 @@ export async function POST(req: Request) {
     let incompletos = 0
 
     for (const p of pacientes) {
+
+      console.log("💰 Valor recebido:", p.valorTicket, p.valor_ticket, p.valorUltimaConsulta)
       const telefoneLimpo = String(p.telefone ?? "").replace(/\D/g, "")
       const nomeValido = String(p.nome ?? "").trim()
+
+      const valorRaw = p.valor_ticket ?? p.valorTicket ?? p.valorUltimaConsulta ?? null
+      const valorTicket = valorRaw ? parseFloat(String(valorRaw)) : null
       
       // Validar data — se vier inválida, salvar como null
       let dataValida: string | null = null;
@@ -74,8 +79,7 @@ export async function POST(req: Request) {
         }
       }
 
-      // Converter valorTicket para número se vier como string
-      const valorTicket = p.valorTicket ? parseFloat(String(p.valorTicket)) : null
+      
 
       // Inserir com data como null se inválida — nunca enviar string inválida para o banco
       await pool.query(
@@ -99,3 +103,4 @@ export async function POST(req: Request) {
     return Response.json({ error: "Erro ao importar pacientes" }, { status: 500 })
   }
 }
+

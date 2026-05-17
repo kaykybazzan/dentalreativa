@@ -48,7 +48,7 @@ export function aplicarRisco(pacientes: any[]): PacienteComRisco[] {
         ultimaConsulta: p.ultimaConsulta,
         diasSemConsulta,
         nivelRisco: classificarRisco(diasSemConsulta),
-        valorTicket: parseFloat(p.valorUltimaConsulta) || 0,
+        valorTicket: parseFloat(p.valorUltimaConsulta ?? p.valorTicket ?? 0) || 0,
         status: p.status,
         dadosIncompletos: p.dadosIncompletos,
       };

@@ -98,54 +98,46 @@ export default function ReportsPage() {
   const [messageModal, setMessageModal] = useState<{ open: boolean; patientName: string; daysSince: number } | null>(null)
   const [messageText, setMessageText] = useState("")
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      if (localStorage.getItem("onboarding_done") !== "true") {
-        router.push("/onboarding")
-        return
-      }
-      
-      setActiveNav("reports")
-      
-      const savedSignupData = localStorage.getItem("signup_data")
-      if (savedSignupData) {
-        try {
-          const parsed = JSON.parse(savedSignupData)
-          if (parsed.fullName) setUserName(parsed.fullName.split(" ")[0])
-          if (parsed.clinicName) {
-            setClinicName(parsed.clinicName)
-          }
-          if (parsed.city) setClinicCity(parsed.city)
-        } catch {
-          // usar defaults
-        }
-      }
+        // useEffect 1 — dados iniciais + clínica
+useEffect(() => {
+  setActiveNav("reports")
 
-      // Buscar nome real da clínica do banco — sempre sobrescreve o localStorage
-      fetch("/api/clinica")
-        .then((res) => res.json())
-        .then((data) => {
-          if (data?.nome) setClinicName(data.nome)
-          if (data?.cidade) setClinicCity(data.cidade)
-        })
-        .catch(() => {
-          // manter o valor do localStorage como fallback
-        })
-
-      // Carregar dados dos relatórios
-      let url = `/api/relatorios?periodo=${period}`
-      if (period === "custom" && customPeriodDates) {
-        url += `&dataInicio=${customPeriodDates.from}&dataFim=${customPeriodDates.to}`
-      }
-      fetch(url)
-        .then((res) => res.json())
-        .then((data) => {
-          setDados(data)
-          setCarregando(false)
-        })
-        .catch(() => setCarregando(false))
+  const savedSignupData = localStorage.getItem("signup_data")
+  if (savedSignupData) {
+    try {
+      const parsed = JSON.parse(savedSignupData)
+      if (parsed.fullName) setUserName(parsed.fullName.split(" ")[0])
+      if (parsed.clinicName) setClinicName(parsed.clinicName)
+      if (parsed.city) setClinicCity(parsed.city)
+    } catch {
+      // manter defaults
     }
-  }, [router, period, customPeriodDates])
+  }
+
+  fetch("/api/clinica")
+    .then((res) => res.json())
+    .then((data) => {
+      if (data?.nome) setClinicName(data.nome)
+      if (data?.cidade) setClinicCity(data.cidade)
+    })
+    .catch(() => {})
+}, [router])
+
+// useEffect 2 — relatórios (separado, sem nenhum outro dentro)
+useEffect(() => {
+  setCarregando(true)
+  let url = `/api/relatorios?periodo=${period}`
+  if (period === "custom" && customPeriodDates) {
+    url += `&dataInicio=${customPeriodDates.from}&dataFim=${customPeriodDates.to}`
+  }
+  fetch(url)
+    .then((res) => res.json())
+    .then((data) => {
+      setDados(data)
+      setCarregando(false)
+    })
+    .catch(() => setCarregando(false))
+}, [period, customPeriodDates])
 
   const handleLogout = () => {
     localStorage.removeItem("onboarding_done")

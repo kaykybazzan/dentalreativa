@@ -68,19 +68,19 @@ export async function GET(req: Request) {
 
     // Dados para o gráfico de evolução (filtrado por período)
     const grafico = await pool.query(
-      `SELECT
-         TO_CHAR(DATE_TRUNC('month', p."ultimaConsulta"), 'Mon/YY') as month,
-         COUNT(*) FILTER (WHERE p.status = 'em_risco' OR p.status = 'contatado' OR p.status = 'aguardando_resposta') as emRisco,
-         COUNT(*) FILTER (WHERE p.status = 'recuperado') as recuperados
-       FROM "Paciente" p
-       INNER JOIN "Clinica" c ON c.id = p."clinicaId"
-       INNER JOIN "Usuario" u ON u."clinicaId" = c.id
-       WHERE u.email = $1
-         AND p."ultimaConsulta" >= NOW() - INTERVAL '${intervalo}'
-       GROUP BY DATE_TRUNC('month', p."ultimaConsulta")
-       ORDER BY DATE_TRUNC('month', p."ultimaConsulta") ASC`,
-      [session.user.email]
-    )
+    `SELECT
+      TO_CHAR(DATE_TRUNC('month', p."criadoEm"), 'Mon/YY') as month,
+      COUNT(*) FILTER (WHERE p.status != 'recuperado') as "emRisco",
+      COUNT(*) FILTER (WHERE p.status = 'recuperado') as "recuperados"
+    FROM "Paciente" p
+    INNER JOIN "Clinica" c ON c.id = p."clinicaId"
+    INNER JOIN "Usuario" u ON u."clinicaId" = c.id
+    WHERE u.email = $1
+      AND p."criadoEm" >= NOW() - INTERVAL '${intervalo}'
+    GROUP BY DATE_TRUNC('month', p."criadoEm")
+    ORDER BY DATE_TRUNC('month', p."criadoEm") ASC`,
+    [session.user.email]
+  )
 
     return Response.json({
       cards: {

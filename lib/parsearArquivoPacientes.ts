@@ -162,3 +162,4 @@ export async function parsearArquivoPacientes(
       return { nome: String(nome).trim(), telefone, ultimaConsulta, valorTicket };
     });
 }
+

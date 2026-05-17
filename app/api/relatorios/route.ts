@@ -58,11 +58,11 @@ export async function GET(req: Request) {
     const totalIncompletos = todos.filter((p) => p.dadosIncompletos).length;
 
     // ── RECEITA RECUPERADA ───────────────────────────────────
-    // Soma real dos valores dos ContactAttempts com resultado = recuperado
+    // Soma real dos valores dos ContactAttempts com valorRecuperado > 0
     const receitaRecuperadaResult = await pool.query(
-      `SELECT COALESCE(SUM(ca.valor_recuperado), 0) as total
+      `SELECT COALESCE(SUM(ca."valorRecuperado"), 0) as total
        FROM "ContactAttempt" ca
-       WHERE ca."clinicaId" = $1 AND ca.resultado = 'recuperado'`,
+       WHERE ca."clinicaId" = $1 AND ca."valorRecuperado" > 0`,
       [clinicaId]
     );
     const receitaRecuperada = parseFloat(receitaRecuperadaResult.rows[0]?.total) || 0;
@@ -113,9 +113,10 @@ export async function GET(req: Request) {
       `SELECT
          TO_CHAR(DATE_TRUNC('month', ca."criadoEm"), 'Mon/YY') as mes,
          DATE_TRUNC('month', ca."criadoEm") as mes_ordem,
-         COUNT(*) FILTER (WHERE ca.resultado = 'recuperado') as recuperados,
+         COUNT(*) FILTER (WHERE p.status = 'recuperado') as recuperados,
          COUNT(*) as total_envios
        FROM "ContactAttempt" ca
+       INNER JOIN "Paciente" p ON p.id = ca."pacienteId"
        WHERE ca."clinicaId" = $1
          ${filtroPeriodo}
        GROUP BY DATE_TRUNC('month', ca."criadoEm")
@@ -139,7 +140,7 @@ export async function GET(req: Request) {
     const recuperadosResult = await pool.query(
       `SELECT 
          p.id, p.nome, p.telefone, p."ultimaConsulta",
-         SUM(ca.valor_recuperado) as valor_total,
+         SUM(ca."valorRecuperado") as valor_total,
          MAX(ca."criadoEm") as data_recuperacao,
          COUNT(ca.id) as tentativas_necessarias
        FROM "Paciente" p
@@ -155,8 +156,9 @@ export async function GET(req: Request) {
       `SELECT 
          ca."tentativaNumero",
          COUNT(*) as total_envios,
-         COUNT(*) FILTER (WHERE ca.resultado = 'recuperado') as total_recuperados
+         COUNT(*) FILTER (WHERE p.status = 'recuperado') as total_recuperados
        FROM "ContactAttempt" ca
+       INNER JOIN "Paciente" p ON p.id = ca."pacienteId"
        WHERE ca."clinicaId" = $1
        GROUP BY ca."tentativaNumero"
        ORDER BY ca."tentativaNumero" ASC`,
