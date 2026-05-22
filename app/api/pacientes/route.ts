@@ -31,7 +31,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { nome, telefone, ultimaConsulta, valor_ticket } = await req.json()
+    const { nome, telefone, ultimaConsulta, valor_ticket, procedimento } = await req.json()
 
     // Buscar clinica_id
     const clinicaResult = await pool.query(
@@ -65,9 +65,9 @@ export async function POST(req: Request) {
     const valorUltimaConsulta = valor_ticket ? parseFloat(String(valor_ticket)) : null
 
     await pool.query(
-      `INSERT INTO "Paciente" ("clinicaId", nome, telefone, "ultimaConsulta", "valorUltimaConsulta", "dadosIncompletos", status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'ativo')`,
-      [clinicaId, nome, telefoneLimpo, ultimaConsulta || null, valorUltimaConsulta, dadosIncompletos]
+      `INSERT INTO "Paciente" ("clinicaId", nome, telefone, "ultimaConsulta", "valorUltimaConsulta", procedimento, "dadosIncompletos", status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'ativo')`,
+      [clinicaId, nome, telefoneLimpo, ultimaConsulta || null, valorUltimaConsulta, procedimento || null, dadosIncompletos]
     )
 
     return Response.json({ success: true })

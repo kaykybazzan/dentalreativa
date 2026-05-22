@@ -2,27 +2,28 @@
 
 import { useEffect, useState, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { 
-  LayoutDashboard, 
-  Users, 
-  Zap, 
-  BarChart3, 
-  Settings, 
-  Search, 
-  Bell, 
+import {
+  LayoutDashboard,
+  Users,
+  Zap,
+  BarChart3,
+  Settings,
+  Search,
+  Bell,
   LogOut,
   ChevronDown,
   ChevronUp,
   ChevronLeft,
   ChevronRight,
   Plus,
-  Eye,
   Check,
   X,
   AlertTriangle,
   Calendar,
   Upload,
-  Download
+  Download,
+  Pencil,
+  Trash2
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -45,7 +46,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { parsearArquivoPacientes } from "@/lib/parsearArquivoPacientes"
 import { aplicarRisco } from "@/lib/calcularRisco"
 
-type PatientStatus = "em_risco" | "contatado" | "aguardando" | "acompanhamento" | "confirmado" | "recuperado" | "perdido" | "ativo" | "em_contato" | "nao_contatar" | "sem_resposta"
+type PatientStatus = "em_risco" | "ativo" | "em_contato" | "recuperado" | "sem_resposta" | "nao_contatar"
 
 type Patient = {
   id: number
@@ -57,46 +58,38 @@ type Patient = {
   status: PatientStatus
   avatarColor: string
   dadosIncompletos?: boolean // Added for filtering
+  procedimento?: string  // ← adicionar
+  rawUltimaConsulta?: string  // ← adicionar (data ISO para edição)
 }
 
 const samplePatients: Patient[] = [
   { id: 1, name: "Ana Costa", phone: "(11) 98765-4321", lastVisit: "12 jan 2024", daysSinceVisit: 210, avgTicket: 450, status: "em_risco", avatarColor: "bg-[#3B82F6]" },
-  { id: 2, name: "João Lima", phone: "(11) 91234-5678", lastVisit: "05 fev 2024", daysSinceVisit: 180, avgTicket: 300, status: "contatado", avatarColor: "bg-[#10B981]" },
-  { id: 3, name: "Carla Souza", phone: "(11) 99876-5432", lastVisit: "20 fev 2024", daysSinceVisit: 165, avgTicket: 520, status: "aguardando", avatarColor: "bg-[#8B5CF6]" },
-  { id: 4, name: "Marcos Reis", phone: "(11) 92345-6789", lastVisit: "01 mar 2024", daysSinceVisit: 140, avgTicket: 280, status: "acompanhamento", avatarColor: "bg-[#F59E0B]" },
+  { id: 2, name: "João Lima", phone: "(11) 91234-5678", lastVisit: "05 fev 2024", daysSinceVisit: 180, avgTicket: 300, status: "em_contato", avatarColor: "bg-[#10B981]" },
+  { id: 3, name: "Carla Souza", phone: "(11) 99876-5432", lastVisit: "20 fev 2024", daysSinceVisit: 165, avgTicket: 520, status: "sem_resposta", avatarColor: "bg-[#8B5CF6]" },
+  { id: 4, name: "Marcos Reis", phone: "(11) 92345-6789", lastVisit: "01 mar 2024", daysSinceVisit: 140, avgTicket: 280, status: "em_contato", avatarColor: "bg-[#F59E0B]" },
   { id: 5, name: "Paula Nunes", phone: "(11) 93456-7890", lastVisit: "15 mar 2024", daysSinceVisit: 120, avgTicket: 390, status: "recuperado", avatarColor: "bg-[#EF4444]" },
-  { id: 6, name: "Roberto Silva", phone: "(11) 94567-8901", lastVisit: "28 mar 2024", daysSinceVisit: 95, avgTicket: 600, status: "perdido", avatarColor: "bg-[#1E3A5F]" },
+  { id: 6, name: "Roberto Silva", phone: "(11) 94567-8901", lastVisit: "28 mar 2024", daysSinceVisit: 95, avgTicket: 600, status: "nao_contatar", avatarColor: "bg-[#1E3A5F]" },
   { id: 7, name: "Fernanda Lima", phone: "(11) 95678-9012", lastVisit: "10 abr 2024", daysSinceVisit: 85, avgTicket: 350, status: "em_risco", avatarColor: "bg-[#059669]" },
-  { id: 8, name: "Carlos Mendes", phone: "(11) 96789-0123", lastVisit: "22 abr 2024", daysSinceVisit: 73, avgTicket: 420, status: "contatado", avatarColor: "bg-[#DC2626]" },
-  { id: 9, name: "Juliana Santos", phone: "(11) 97890-1234", lastVisit: "05 mai 2024", daysSinceVisit: 60, avgTicket: 380, status: "confirmado", avatarColor: "bg-[#7C3AED]" },
+  { id: 8, name: "Carlos Mendes", phone: "(11) 96789-0123", lastVisit: "22 abr 2024", daysSinceVisit: 73, avgTicket: 420, status: "em_contato", avatarColor: "bg-[#DC2626]" },
+  { id: 9, name: "Juliana Santos", phone: "(11) 97890-1234", lastVisit: "05 mai 2024", daysSinceVisit: 60, avgTicket: 380, status: "recuperado", avatarColor: "bg-[#7C3AED]" },
   { id: 10, name: "Pedro Oliveira", phone: "(11) 98901-2345", lastVisit: "15 mai 2024", daysSinceVisit: 50, avgTicket: 550, status: "em_risco", avatarColor: "bg-[#0891B2]" },
 ]
 
-const statusConfig: Record<PatientStatus, { label: string; bgColor: string; textColor: string }> = {
+const statusConfig: Record<string, { label: string; bgColor: string; textColor: string }> = {
   em_risco: { label: "Em risco", bgColor: "bg-[#FEF2F2]", textColor: "text-[#DC2626]" },
-  contatado: { label: "Contatado", bgColor: "bg-[#FFF7ED]", textColor: "text-[#C2410C]" },
-  aguardando: { label: "Aguardando resposta", bgColor: "bg-[#FEFCE8]", textColor: "text-[#A16207]" },
-  acompanhamento: { label: "Em acompanhamento", bgColor: "bg-[#EFF6FF]", textColor: "text-[#1D4ED8]" },
-  confirmado: { label: "Confirmou retorno", bgColor: "bg-[#F0FDFA]", textColor: "text-[#0F766E]" },
-  recuperado: { label: "Recuperado", bgColor: "bg-[#F0FDF4]", textColor: "text-[#15803D]" },
-  perdido: { label: "Perdido", bgColor: "bg-[#F8FAFC]", textColor: "text-[#475569]" },
-  // Fallback for database statuses
   ativo: { label: "Ativo", bgColor: "bg-[#F0FDF4]", textColor: "text-[#15803D]" },
-  em_contato: { label: "Em contato", bgColor: "bg-[#EFF6FF]", textColor: "text-[#1D4ED8]" },
-  nao_contatar: { label: "Não contatar", bgColor: "bg-[#F8FAFC]", textColor: "text-[#475569]" },
+  em_contato: { label: "Contatado", bgColor: "bg-[#EFF6FF]", textColor: "text-[#1D4ED8]" },
+  recuperado: { label: "Recuperado", bgColor: "bg-[#F0FDF4]", textColor: "text-[#15803D]" },
   sem_resposta: { label: "Sem resposta", bgColor: "bg-[#FEFCE8]", textColor: "text-[#A16207]" },
+  nao_contatar: { label: "Não contatar", bgColor: "bg-[#F8FAFC]", textColor: "text-[#475569]" },
 }
 
 const tabFilters: { key: PatientStatus | "all" | "incompletos"; label: string }[] = [
   { key: "all", label: "Todos" },
   { key: "incompletos", label: "Dados incompletos" },
   { key: "em_risco", label: "Em risco" },
-  { key: "contatado", label: "Contatado" },
-  { key: "aguardando", label: "Aguardando resposta" },
-  { key: "acompanhamento", label: "Em acompanhamento" },
-  { key: "confirmado", label: "Confirmou retorno" },
-  { key: "recuperado", label: "Recuperado" },
-  { key: "perdido", label: "Perdido" },
+  { key: "em_contato", label: "Em contato" },
+  { key: "recuperado", label: "Recuperados" },
 ]
 
 const notifications = [
@@ -119,20 +112,31 @@ export default function PatientsPage() {
   const [patients, setPatients] = useState<Patient[]>(samplePatients)
   const [searchQuery, setSearchQuery] = useState("")
   const [activeTab, setActiveTab] = useState<PatientStatus | "all" | "incompletos">("all")
+  const [filtroPeriodo, setFiltroPeriodo] = useState<"todos" | "ate6m" | "6a12m" | "mais1a">("todos")
   const [selectedPatients, setSelectedPatients] = useState<number[]>([])
   const [sortField, setSortField] = useState<"daysSinceVisit" | "avgTicket" | null>(null)
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(20)
   const [isLoading, setIsLoading] = useState(false)
-  
+  const [rawPatients, setRawPatients] = useState<any[]>([])
+
   // Modals
   const [showAddModal, setShowAddModal] = useState(false)
-  const [showMessageModal, setShowMessageModal] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
   const [showExportDropdown, setShowExportDropdown] = useState(false)
-  const [selectedPatientForMessage, setSelectedPatientForMessage] = useState<Patient | null>(null)
-  
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [editingPatient, setEditingPatient] = useState<Patient | null>(null)
+  const [deletingPatient, setDeletingPatient] = useState<Patient | null>(null)
+  const [editForm, setEditForm] = useState({
+    name: "",
+    phone: "",
+    lastVisit: "",
+    procedure: "",
+    value: ""
+  })
+
   // Form state
   const [newPatient, setNewPatient] = useState({
     name: "",
@@ -141,7 +145,6 @@ export default function PatientsPage() {
     procedure: "",
     value: ""
   })
-  const [messageText, setMessageText] = useState("")
   const [csvFile, setCsvFile] = useState<File | null>(null)
   const [importSummary, setImportSummary] = useState<{ importados: number; duplicados: number; incompletos: number } | null>(null)
 
@@ -203,14 +206,17 @@ export default function PatientsPage() {
             name: p.nome,
             phone: p.telefone,
             lastVisit: ultimaConsulta ? ultimaConsulta.toLocaleDateString('pt-BR') : '',
+            rawUltimaConsulta: p.ultimaConsulta ? new Date(p.ultimaConsulta).toISOString().split('T')[0] : '',
             daysSinceVisit,
             avgTicket: p.valorUltimaConsulta || 0,
-            status: p.status || 'em_risco',
+            status: p.status || 'ativo',
             avatarColor: avatarColors[Math.floor(Math.random() * avatarColors.length)],
-            dadosIncompletos: p.dadosIncompletos || false
+            dadosIncompletos: p.dadosIncompletos || false,
+            procedimento: p.procedimento || ''
           }
         })
         setPatients(mappedPatients)
+        setRawPatients(data)
       }
     } catch (error) {
       console.error('Erro ao buscar pacientes:', error)
@@ -319,12 +325,21 @@ export default function PatientsPage() {
       )
     }
 
+    // Filtro de período
+    if (filtroPeriodo === "ate6m") {
+      result = result.filter(p => p.daysSinceVisit <= 180)
+    } else if (filtroPeriodo === "6a12m") {
+      result = result.filter(p => p.daysSinceVisit > 180 && p.daysSinceVisit <= 365)
+    } else if (filtroPeriodo === "mais1a") {
+      result = result.filter(p => p.daysSinceVisit > 365)
+    }
+
     // Tab filter
     if (activeTab === "incompletos") {
       result = result.filter(p => p.dadosIncompletos)
     } else if (activeTab === "em_risco") {
       // Usar a mesma lógica de cálculo de risco que o dashboard
-      const pacientesComRisco = aplicarRisco(patients)
+      const pacientesComRisco = aplicarRisco(rawPatients)
       const idsEmRisco = new Set(pacientesComRisco.filter(p => p.nivelRisco !== "ok").map(p => String(p.id)))
       result = result.filter(p => idsEmRisco.has(String(p.id)))
     } else if (activeTab !== "all") {
@@ -341,7 +356,7 @@ export default function PatientsPage() {
     }
     
     return result
-  }, [patients, searchQuery, activeTab, sortField, sortDirection])
+  }, [patients, searchQuery, activeTab, sortField, sortDirection, filtroPeriodo])
 
   // Pagination
   const totalPages = Math.ceil(filteredPatients.length / itemsPerPage)
@@ -357,7 +372,7 @@ export default function PatientsPage() {
       if (tab.key !== "all") {
         if (tab.key === "em_risco") {
           // Usar a mesma lógica de cálculo de risco que o dashboard
-          const pacientesComRisco = aplicarRisco(patients)
+          const pacientesComRisco = aplicarRisco(rawPatients)
           counts[tab.key] = pacientesComRisco.filter(p => p.nivelRisco !== "ok").length
         } else {
           counts[tab.key] = patients.filter(p => p.status === tab.key).length
@@ -397,35 +412,106 @@ export default function PatientsPage() {
     setTimeout(() => setToast({ show: false, message: "" }), 3000)
   }
 
-  const handleMarkAsContacted = (patientId: number) => {
-    setPatients(prev => prev.map(p => 
-      p.id === patientId ? { ...p, status: "contatado" as PatientStatus } : p
-    ))
-    showToast("Status atualizado!")
+  const handleMarkAsContacted = async (patientId: number) => {
+    try {
+      const response = await fetch(`/api/pacientes/${patientId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'em_contato' })
+      })
+      if (response.ok) {
+        setPatients(prev => prev.map(p =>
+          p.id === patientId ? { ...p, status: "em_contato" as PatientStatus } : p
+        ))
+        showToast("Paciente marcado como contatado!")
+      } else {
+        showToast("Erro ao atualizar status")
+      }
+    } catch (error) {
+      console.error('Erro ao marcar como contatado:', error)
+      showToast("Erro ao atualizar status")
+    }
   }
 
-  const handleBulkMarkAsContacted = () => {
-    setPatients(prev => prev.map(p => 
-      selectedPatients.includes(p.id) ? { ...p, status: "contatado" as PatientStatus } : p
-    ))
-    setSelectedPatients([])
-    showToast("Status atualizado!")
+  const handleBulkMarkAsContacted = async () => {
+    try {
+      await Promise.all(
+        selectedPatients.map(id =>
+          fetch(`/api/pacientes/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'em_contato' })
+          })
+        )
+      )
+      setPatients(prev => prev.map(p =>
+        selectedPatients.includes(p.id) ? { ...p, status: "em_contato" as PatientStatus } : p
+      ))
+      setSelectedPatients([])
+      showToast(`${selectedPatients.length} pacientes marcados como contatados!`)
+    } catch (error) {
+      console.error('Erro ao marcar em massa:', error)
+      showToast("Erro ao atualizar status")
+    }
   }
 
-  const openMessageModal = (patient: Patient) => {
-    setSelectedPatientForMessage(patient)
-    setMessageText(`Olá ${patient.name.split(" ")[0]}! Sentimos sua falta na clínica.\nJá faz ${patient.daysSinceVisit} dias desde sua última consulta.\nPodemos agendar uma revisão para você?`)
-    setShowMessageModal(true)
+  const handleOpenEdit = (patient: Patient) => {
+    setEditingPatient(patient)
+    setEditForm({
+      name: patient.name,
+      phone: patient.phone,
+      lastVisit: patient.rawUltimaConsulta || '',
+      procedure: patient.procedimento || '',
+      value: patient.avgTicket ? String(patient.avgTicket) : ''
+    })
+    setShowEditModal(true)
   }
 
-  const handleSendWhatsApp = () => {
-    if (!selectedPatientForMessage) return
-    const cleanPhone = selectedPatientForMessage?.phone.replace(/\D/g, "")
-    const encodedMessage = encodeURIComponent(messageText)
-    window.open(`https://wa.me/55${cleanPhone}?text=${encodedMessage}`, "_blank")
-    setShowMessageModal(false)
-    showToast("Mensagem aberta no WhatsApp!")
+  const handleSaveEdit = async () => {
+    if (!editingPatient) return
+    try {
+      const response = await fetch(`/api/pacientes/${editingPatient.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nome: editForm.name,
+          telefone: editForm.phone,
+          ultimaConsulta: editForm.lastVisit || undefined,
+          procedimento: editForm.procedure || undefined,
+          valorUltimaConsulta: editForm.value ? parseFloat(editForm.value) : undefined,
+        })
+      })
+      if (response.ok) {
+        await fetchPatients()
+        setShowEditModal(false)
+        setEditingPatient(null)
+        showToast("Paciente atualizado com sucesso!")
+      } else {
+        showToast("Erro ao atualizar paciente")
+      }
+    } catch {
+      showToast("Erro ao atualizar paciente")
+    }
   }
+
+  const handleDeletePatient = async () => {
+  if (!deletingPatient) return
+  try {
+    const response = await fetch(`/api/pacientes/${deletingPatient.id}`, {
+      method: 'DELETE'
+    })
+    if (response.ok) {
+      await fetchPatients()
+      setShowDeleteConfirm(false)
+      setDeletingPatient(null)
+      showToast("Paciente removido com sucesso!")
+    } else {
+      showToast("Erro ao remover paciente")
+    }
+  } catch {
+    showToast("Erro ao remover paciente")
+  }
+}
 
   const formatPhoneInput = (value: string) => {
     const digits = value.replace(/\D/g, "")
@@ -444,7 +530,9 @@ export default function PatientsPage() {
         body: JSON.stringify({
           nome: newPatient.name,
           telefone: newPatient.phone,
-          ultimaConsulta: newPatient.lastVisit
+          ultimaConsulta: newPatient.lastVisit,
+          procedimento: newPatient.procedure || undefined,
+          valor_ticket: newPatient.value ? parseFloat(newPatient.value) : undefined,
         })
       })
 
@@ -528,19 +616,6 @@ export default function PatientsPage() {
     link.download = "modelo_pacientes.csv"
     link.click()
     URL.revokeObjectURL(url)
-  }
-
-  function WhatsAppIcon({ className }: { className?: string }) {
-    return (
-      <svg
-        className={className}
-        viewBox="0 0 24 24"
-        fill="currentColor"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
-      </svg>
-    )
   }
 
   return (
@@ -738,7 +813,7 @@ export default function PatientsPage() {
         </div>
 
         {/* Card container branco com borda */}
-        <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm flex-1 flex flex-col">
+        <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm flex-1 flex flex-col min-h-0">
           {/* LINHA 1: Título + botões de ação */}
           <div className="flex items-center justify-between px-6 pt-6 mb-4">
             <h2 className="text-lg font-semibold text-[#1E293B]">Lista de pacientes</h2>
@@ -762,8 +837,8 @@ export default function PatientsPage() {
           </div>
 
           {/* LINHA 2: Barra de busca (largura total) */}
-          <div className="px-6 mb-4">
-            <div className="relative">
+          <div className="px-6 mb-4 flex gap-3">
+            <div className="relative flex-1">
               <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#64748B]" />
               <Input 
                 placeholder="Buscar por nome ou telefone..." 
@@ -772,6 +847,16 @@ export default function PatientsPage() {
                 className="w-full pl-12 h-11 bg-white border-[#E2E8F0] text-sm rounded-lg focus:border-[#0F3460] focus:ring-[#0F3460]/20"
               />
             </div>
+            <select
+              value={filtroPeriodo}
+              onChange={(e) => setFiltroPeriodo(e.target.value as any)}
+              className="h-11 pl-3 pr-8 rounded-lg border border-[#E2E8F0] bg-white text-sm text-[#64748B] focus:outline-none focus:ring-2 focus:ring-[#0F3460] appearance-none cursor-pointer"
+            >
+              <option value="todos">Todos os períodos</option>
+              <option value="ate6m">Últimos 6 meses</option>
+              <option value="6a12m">6 a 12 meses</option>
+              <option value="mais1a">Mais de 1 ano</option>
+            </select>
           </div>
 
           {/* LINHA 3: Abas de filtro */}
@@ -818,7 +903,7 @@ export default function PatientsPage() {
           )}
 
           {/* Table */}
-          <div className="overflow-x-auto px-6">
+          <div className="overflow-auto px-6 flex-1">
             <table className="w-full">
               <thead>
                 <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
@@ -892,7 +977,12 @@ export default function PatientsPage() {
                             </div>
                           </td>
                           <td className="px-4 py-3 text-sm text-[#64748B]">{patient.phone ?? "—"}</td>
-                          <td className="px-4 py-3 text-sm text-[#64748B]">{patient.lastVisit ?? "—"}</td>
+                          <td className="px-4 py-3">
+                          <div className="text-sm text-[#64748B]">{patient.lastVisit ?? "—"}</div>
+                          {patient.procedimento && (
+                            <div className="text-xs text-[#94A3B8] mt-0.5">{patient.procedimento}</div>
+                          )}
+                        </td>
                           <td className={`px-4 py-3 text-sm ${getDaysColor(patient.daysSinceVisit)}`}>
                             {patient.daysSinceVisit}
                           </td>
@@ -904,21 +994,14 @@ export default function PatientsPage() {
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-1">
-                              <button 
-                                onClick={() => router.push(`/dashboard/pacientes/${patient.id}`)}
-                                className="p-2 rounded-lg hover:bg-[#F1F5F9] transition-colors"
-                                title="Ver perfil"
+                              <button
+                                onClick={() => handleOpenEdit(patient)}
+                                className="p-2 rounded-lg hover:bg-[#EFF6FF] transition-colors"
+                                title="Editar paciente"
                               >
-                                <Eye className="h-4 w-4 text-[#64748B]" />
+                                <Pencil className="h-4 w-4 text-[#64748B]" />
                               </button>
-                              <button 
-                                onClick={() => openMessageModal(patient)}
-                                className="p-2 rounded-lg hover:bg-[#D1FAE5] transition-colors"
-                                title="Enviar mensagem"
-                              >
-                                <WhatsAppIcon className="h-4 w-4 text-[#25D366]" />
-                              </button>
-                              <button 
+                              <button
                                 onClick={() => handleMarkAsContacted(patient.id)}
                                 className="p-2 rounded-lg hover:bg-[#F1F5F9] transition-colors"
                                 title="Marcar como contatado"
@@ -1004,42 +1087,31 @@ export default function PatientsPage() {
                 className="w-full h-11 px-3 rounded-lg border border-[#E2E8F0] text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#0F3460] focus:border-transparent"
               />
             </div>
+            <div>
+              <label className="text-sm font-medium text-[#1E293B] mb-1.5 block">Procedimento <span className="text-[#94A3B8] font-normal">(opcional)</span></label>
+              <Input
+                placeholder="Ex: Limpeza, Implante, Canal..."
+                value={newPatient.procedure}
+                onChange={(e) => setNewPatient(prev => ({ ...prev, procedure: e.target.value }))}
+                className="h-11"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-[#1E293B] mb-1.5 block">Valor da consulta (R$) <span className="text-[#94A3B8] font-normal">(opcional)</span></label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8] text-sm">R$</span>
+                <Input
+                  placeholder="0,00"
+                  type="number"
+                  value={newPatient.value}
+                  onChange={(e) => setNewPatient(prev => ({ ...prev, value: e.target.value }))}
+                  className="h-11 pl-9"
+                />
+              </div>
+            </div>
             <div className="flex justify-between pt-4">
               <Button variant="outline" onClick={() => setShowAddModal(false)} className="border-[#E2E8F0] text-[#64748B]">Cancelar</Button>
               <Button onClick={handleAddPatient} className="bg-[#0F3460] hover:bg-[#0F3460]/90 text-white">Salvar paciente</Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Send Message Modal */}
-      <Dialog open={showMessageModal} onOpenChange={setShowMessageModal}>
-        <DialogContent className="sm:max-w-[480px] rounded-2xl p-0">
-          <DialogHeader className="p-6 pb-4">
-            <div className="flex items-center gap-3">
-              <WhatsAppIcon className="h-6 w-6 text-[#25D366]" />
-              <div>
-                <DialogTitle className="text-base font-bold text-[#1E293B]">Enviar mensagem</DialogTitle>
-                {selectedPatientForMessage && (
-                  <p className="text-xs text-[#64748B] mt-0.5">
-                    Para: {selectedPatientForMessage?.name} · {selectedPatientForMessage?.daysSinceVisit} dias sem visita
-                  </p>
-                )}
-              </div>
-            </div>
-          </DialogHeader>
-          <div className="px-6 pb-6 space-y-4">
-            <div>
-              <label className="text-sm font-medium text-[#1E293B] mb-1.5 block">Mensagem</label>
-              <Textarea value={messageText} onChange={(e) => setMessageText(e.target.value)} className="h-32 resize-none" maxLength={160} />
-              <p className="text-xs text-[#64748B] text-right mt-1">{messageText.length}/160</p>
-            </div>
-            <div className="flex justify-between pt-2">
-              <Button variant="outline" onClick={() => setShowMessageModal(false)} className="border-[#E2E8F0] text-[#64748B]">Cancelar</Button>
-              <Button onClick={handleSendWhatsApp} className="bg-[#25D366] hover:bg-[#25D366]/90 text-white">
-                <WhatsAppIcon className="h-4 w-4 mr-2" />
-                Abrir no WhatsApp
-              </Button>
             </div>
           </div>
         </DialogContent>
@@ -1092,6 +1164,82 @@ export default function PatientsPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Patient Modal */}
+      <Dialog open={showEditModal} onOpenChange={(open) => { if (!open) { setShowEditModal(false); setEditingPatient(null) } }}>
+        <DialogContent className="sm:max-w-[520px] rounded-2xl p-0">
+          <DialogHeader className="p-6 pb-0">
+            <DialogTitle className="text-xl font-bold text-[#1E293B]">Editar paciente</DialogTitle>
+          </DialogHeader>
+          <div className="p-6 space-y-4">
+            <div>
+              <label className="text-sm font-medium text-[#1E293B] mb-1.5 block">Nome completo</label>
+              <Input value={editForm.name} onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))} className="h-11" />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-[#1E293B] mb-1.5 block">Telefone</label>
+              <Input value={editForm.phone} onChange={(e) => setEditForm(prev => ({ ...prev, phone: formatPhoneInput(e.target.value) }))} className="h-11" maxLength={15} />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-[#1E293B] mb-1.5 block">Data da última consulta</label>
+              <input
+                type="date"
+                value={editForm.lastVisit}
+                onChange={(e) => setEditForm(prev => ({ ...prev, lastVisit: e.target.value }))}
+                max={new Date().toISOString().split("T")[0]}
+                className="w-full h-11 px-3 rounded-lg border border-[#E2E8F0] text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#0F3460] focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-[#1E293B] mb-1.5 block">Procedimento <span className="text-[#94A3B8] font-normal">(opcional)</span></label>
+              <Input placeholder="Ex: Limpeza, Implante..." value={editForm.procedure} onChange={(e) => setEditForm(prev => ({ ...prev, procedure: e.target.value }))} className="h-11" />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-[#1E293B] mb-1.5 block">Valor da consulta (R$) <span className="text-[#94A3B8] font-normal">(opcional)</span></label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8] text-sm">R$</span>
+                <Input placeholder="0,00" type="number" value={editForm.value} onChange={(e) => setEditForm(prev => ({ ...prev, value: e.target.value }))} className="h-11 pl-9" />
+              </div>
+            </div>
+            <div className="flex justify-between pt-4 border-t border-[#E2E8F0]">
+              <button
+                onClick={() => {
+                  setDeletingPatient(editingPatient)
+                  setShowEditModal(false)
+                  setShowDeleteConfirm(true)
+                }}
+                className="flex items-center gap-2 text-sm text-[#EF4444] hover:text-[#DC2626] font-medium transition-colors"
+              >
+                <Trash2 className="h-4 w-4" />
+                Excluir paciente
+              </button>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => { setShowEditModal(false); setEditingPatient(null) }} className="border-[#E2E8F0] text-[#64748B]">Cancelar</Button>
+                <Button onClick={handleSaveEdit} className="bg-[#0F3460] hover:bg-[#0F3460]/90 text-white">Salvar</Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#FEF2F2] mx-auto mb-4">
+              <Trash2 className="h-6 w-6 text-[#EF4444]" />
+            </div>
+            <h3 className="text-base font-bold text-[#1E293B] text-center mb-2">Excluir paciente?</h3>
+            <p className="text-sm text-[#64748B] text-center mb-6">
+              Essa ação não pode ser desfeita. Todo o histórico de envios de <strong>{deletingPatient?.name}</strong> também será removido.
+            </p>
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={() => setShowDeleteConfirm(false)} className="flex-1">Cancelar</Button>
+              <Button onClick={handleDeletePatient} className="flex-1 bg-[#EF4444] hover:bg-[#DC2626] text-white">Excluir</Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {toast.show && (
         <div className="fixed top-6 right-6 bg-[#10B981] text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-in slide-in-from-right z-50">

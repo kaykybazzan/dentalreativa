@@ -8,7 +8,6 @@ import {
   Zap,
   BarChart3,
   Settings,
-  Bell,
   LogOut,
   ChevronDown,
   DollarSign,
@@ -53,11 +52,7 @@ import {
 
 type Period = "7d" | "30d" | "90d" | "custom"
 
-const notifications = [
-  { id: 1, type: "alert", text: "5 novos pacientes em risco hoje", time: "Há 2 horas" },
-  { id: 2, type: "whatsapp", text: "Maria Silva respondeu sua mensagem", time: "Há 3 horas" },
-  { id: 3, type: "calendar", text: "João Santos confirmou consulta", time: "Há 5 horas" },
-]
+
 
 const navItems = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -73,7 +68,6 @@ export default function ReportsPage() {
   const [clinicCity, setClinicCity] = useState("São Paulo - SP")
   const [userName, setUserName] = useState("Kayky")
   const [activeNav, setActiveNav] = useState("reports")
-  const [showNotifications, setShowNotifications] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showProfileModal, setShowProfileModal] = useState(false)
   const [period, setPeriod] = useState<Period>("30d")
@@ -441,53 +435,9 @@ useEffect(() => {
         {/* Header */}
         <header className="bg-white border-b border-[#E2E8F0] px-7 py-4 shrink-0">
           {/* LINHA 1: Título + sino de notificações */}
+          
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-2xl font-bold text-[#1E293B]">Relatórios</h1>
-            
-            {/* Notification Bell */}
-            <div className="relative">
-              <button
-                onClick={() => setShowNotifications(!showNotifications)}
-                className="relative p-2 text-[#64748B] hover:text-[#1E293B] transition-colors"
-              >
-                <Bell className="h-5 w-5" />
-                <span className="absolute -top-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-[#EF4444] text-[10px] font-medium text-white">
-                  3
-                </span>
-              </button>
-
-              {showNotifications && (
-                <div className="absolute right-0 top-12 w-80 bg-white rounded-xl border border-[#E2E8F0] shadow-lg z-50">
-                  <div className="p-4 border-b border-[#E2E8F0]">
-                    <h4 className="text-sm font-semibold text-[#1E293B]">Notificações</h4>
-                  </div>
-                  <div className="divide-y divide-[#E2E8F0]">
-                    {notifications.map((n) => (
-                      <div key={n.id} className="p-4 hover:bg-[#F8FAFC] transition-colors cursor-pointer">
-                        <div className="flex items-start gap-3">
-                          <div className={`flex h-8 w-8 items-center justify-center rounded-full shrink-0 ${
-                            n.type === "alert" ? "bg-[#FEE2E2]" :
-                            n.type === "whatsapp" ? "bg-[#D1FAE5]" : "bg-[#DBEAFE]"
-                          }`}>
-                            {n.type === "alert" ? (
-                              <AlertTriangle className="h-4 w-4 text-[#EF4444]" />
-                            ) : n.type === "whatsapp" ? (
-                              <WhatsAppIcon className="h-4 w-4 text-[#10B981]" />
-                            ) : (
-                              <Calendar className="h-4 w-4 text-[#3B82F6]" />
-                            )}
-                          </div>
-                          <div>
-                            <p className="text-sm text-[#1E293B]">{n.text}</p>
-                            <p className="text-xs text-[#94A3B8] mt-0.5">{n.time}</p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
 
           {/* LINHA 2: Subtítulo + filtros de período */}
@@ -1067,10 +1017,10 @@ useEffect(() => {
                       </td>
                       <td className="py-3.5 px-4">
                         <Button
-                          onClick={() => openMessageModal(p.nome ?? "", p.diasSemConsulta ?? 0)}
+                          onClick={() => router.push("/dashboard/automacao")}
                           className="bg-[#0F3460] hover:bg-[#0A2548] text-white text-xs h-8 px-3"
                         >
-                          Contatar agora
+                          Ir para Central de Envios
                         </Button>
                       </td>
                     </tr>
@@ -1081,7 +1031,10 @@ useEffect(() => {
 
             {(dados?.pacientesEmRisco?.length ?? 0) > 5 && (
               <div className="mt-4 text-center">
-                <button className="text-sm font-semibold text-[#0F3460] hover:underline inline-flex items-center gap-1">
+                <button
+                  onClick={() => router.push("/dashboard/pacientes")}
+                  className="text-sm font-semibold text-[#0F3460] hover:underline inline-flex items-center gap-1"
+                >
                   Ver todos os {dados?.pacientesEmRisco?.length ?? 0} pacientes
                   <ChevronRight className="h-4 w-4" />
                 </button>

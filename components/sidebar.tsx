@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import {
@@ -21,58 +21,52 @@ type SidebarProps = {
   onLogout: () => void
 }
 
-export function Sidebar({
-  activeNav,
-  onNavChange,
-  onLogout
-}: SidebarProps) {
+export function Sidebar({ activeNav, onNavChange, onLogout }: SidebarProps) {
   const router = useRouter()
   const { data: session } = useSession()
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showProfileModal, setShowProfileModal] = useState(false)
   const [clinica, setClinica] = useState<{ nome: string; cidade?: string } | null>(null)
 
- useEffect(() => {
-  if (session?.user?.email) {
-    fetch("/api/clinica")
-      .then((res) => res.json())
-      .then((data) => setClinica(data))
-      .catch((err) => console.error("Erro ao buscar clínica:", err))
-  }
-}, [session])
-
-const userName = session?.user?.name || "Usuário"
-const userEmail = session?.user?.email || ""
-const clinicName = clinica?.nome || "Carregando..."
-const clinicCity = clinica?.cidade || ""
-const userInitial = userName[0]?.toUpperCase() || "U"
+  const userName = session?.user?.name || "Usuário"
+  const clinicName = clinica?.nome || "Carregando..."
+  const clinicCity = clinica?.cidade || ""
+  const userInitial = userName[0]?.toUpperCase() || "U"
 
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement
-      if (!target.closest("#user-menu-button") && !target.closest("#user-menu-dropdown")) {
-        setShowUserMenu(false)
-      }
+    if (session?.user?.email) {
+      fetch("/api/clinica")
+        .then((res) => res.json())
+        .then((data) => setClinica(data))
+        .catch(() => {})
     }
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [])
+  }, [session])
 
-  // Itens de navegação — "Automação" renomeado para "Central de Envios"
+  useEffect(() => {
+  const handleClickOutside = (e: MouseEvent) => {
+    const target = e.target as HTMLElement
+    if (!target.closest("#user-menu-button") && !target.closest("#user-menu-dropdown")) {
+      setShowUserMenu(false)
+    }
+  }
+  document.addEventListener("mousedown", handleClickOutside)
+  return () => document.removeEventListener("mousedown", handleClickOutside)
+}, [])
+
   const navItems = [
-    { id: "dashboard",  label: "Dashboard",        icon: LayoutDashboard },
-    { id: "patients",   label: "Pacientes",         icon: Users },
-    { id: "automation", label: "Central de Envios",  icon: Zap },
-    { id: "reports",    label: "Relatórios",         icon: BarChart3 },
-    { id: "settings",   label: "Configurações",      icon: Settings },
+    { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { id: "patients", label: "Pacientes", icon: Users },
+    { id: "automation", label: "Central de Envios", icon: Zap },
+    { id: "reports", label: "Relatórios", icon: BarChart3 },
+    { id: "settings", label: "Configurações", icon: Settings },
   ]
 
   const handleNavClick = (id: string) => {
     onNavChange(id)
-    if (id === "patients")   router.push("/dashboard/pacientes")
+    if (id === "patients") router.push("/dashboard/pacientes")
     else if (id === "automation") router.push("/dashboard/automacao")
-    else if (id === "reports")    router.push("/dashboard/relatorios")
-    else if (id === "settings")   router.push("/dashboard/configuracoes")
+    else if (id === "reports") router.push("/dashboard/relatorios")
+    else if (id === "settings") router.push("/dashboard/configuracoes")
     else router.push("/dashboard")
   }
 
@@ -89,7 +83,7 @@ const userInitial = userName[0]?.toUpperCase() || "U"
           </div>
         </div>
 
-        {/* Navegação principal */}
+        {/* Navegação */}
         <nav className="flex-1 p-3">
           <ul className="space-y-1">
             {navItems.map((item) => {
@@ -114,10 +108,8 @@ const userInitial = userName[0]?.toUpperCase() || "U"
           </ul>
         </nav>
 
-        {/* Rodapé do menu */}
+        {/* Rodapé */}
         <div className="p-3 border-t border-white/10">
-          
-          {/* Bloco da clínica */}
           <div className="flex items-center justify-between px-3 py-2.5 mb-1">
             <div className="text-left">
               <p className="text-sm font-medium text-white">{clinicName}</p>
@@ -125,7 +117,6 @@ const userInitial = userName[0]?.toUpperCase() || "U"
             </div>
           </div>
 
-          {/* Bloco do usuário com dropdown */}
           <div className="relative">
             <button
               id="user-menu-button"
@@ -133,7 +124,7 @@ const userInitial = userName[0]?.toUpperCase() || "U"
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/5 transition-colors"
             >
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white text-sm font-medium shrink-0">
-                {userInitial.toUpperCase()}
+                {userInitial}
               </div>
               <div className="flex-1 min-w-0 text-left">
                 <p className="text-sm font-medium text-white">{userName}</p>
@@ -142,24 +133,18 @@ const userInitial = userName[0]?.toUpperCase() || "U"
               <ChevronDown className={`h-4 w-4 text-white/60 transition-transform ${showUserMenu ? "rotate-180" : ""}`} />
             </button>
 
-            {/* Dropdown menu */}
             {showUserMenu && (
               <div
                 id="user-menu-dropdown"
                 className="absolute bottom-full left-0 right-0 mb-1 bg-white rounded-xl border border-[#E2E8F0] shadow-lg overflow-hidden z-50"
               >
-                {/* Cabeçalho do dropdown */}
                 <div className="px-4 py-3 border-b border-[#E2E8F0]">
                   <p className="text-xs font-semibold text-[#1E293B]">{userName}</p>
                   <p className="text-xs text-[#64748B]">{clinicName}</p>
                 </div>
 
-                {/* Opção: Meu perfil */}
                 <button
-                  onClick={() => {
-                    setShowUserMenu(false)
-                    setShowProfileModal(true)
-                  }}
+                  onClick={() => { setShowUserMenu(false); setShowProfileModal(true) }}
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-[#1E293B] hover:bg-[#F8FAFC] transition-colors text-left"
                 >
                   <svg className="h-4 w-4 text-[#64748B]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -169,12 +154,8 @@ const userInitial = userName[0]?.toUpperCase() || "U"
                   Meu perfil
                 </button>
 
-                {/* Opção: Configurações da clínica */}
                 <button
-                  onClick={() => {
-                    setShowUserMenu(false)
-                    router.push("/dashboard/configuracoes")
-                  }}
+                  onClick={() => { setShowUserMenu(false); router.push("/dashboard/configuracoes") }}
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-[#1E293B] hover:bg-[#F8FAFC] transition-colors text-left"
                 >
                   <svg className="h-4 w-4 text-[#64748B]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -184,25 +165,18 @@ const userInitial = userName[0]?.toUpperCase() || "U"
                   Configurações da clínica
                 </button>
 
-                {/* Divisor */}
                 <div className="border-t border-[#E2E8F0]" />
 
-                {/* Opção: Sair */}
                 <button
-                  onClick={() => {
-                    setShowUserMenu(false)
-                    onLogout()
-                  }}
+                  onClick={() => { setShowUserMenu(false); onLogout() }}
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-[#EF4444] hover:bg-[#FEF2F2] transition-colors text-left"
                 >
                   <LogOut className="h-4 w-4" />
                   Sair
                 </button>
-
               </div>
             )}
           </div>
-
         </div>
       </aside>
 
@@ -212,47 +186,27 @@ const userInitial = userName[0]?.toUpperCase() || "U"
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-base font-bold text-[#1E293B]">Meu perfil</h2>
-              <button
-                onClick={() => setShowProfileModal(false)}
-                className="text-[#64748B] hover:text-[#1E293B]"
-              >
-                <X className="h-5 w-5" />
+              <button onClick={() => setShowProfileModal(false)}>
+                <X className="h-5 w-5 text-[#64748B]" />
               </button>
             </div>
-
             <div className="flex flex-col items-center mb-6">
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#0F3460] text-white text-2xl font-bold mb-3">
-                {userName[0].toUpperCase()}
+                {userInitial}
               </div>
               <p className="text-base font-semibold text-[#1E293B]">{userName}</p>
               <p className="text-sm text-[#64748B]">Administrador</p>
             </div>
-
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-[#64748B] mb-1">
-                  Nome completo
-                </label>
-                <input
-                  type="text"
-                  value={userName}
-                  readOnly
-                  className="w-full h-10 px-3 rounded-lg border border-[#E2E8F0] text-sm text-[#1E293B] bg-[#F8FAFC]"
-                />
+                <label className="block text-xs font-medium text-[#64748B] mb-1">Nome completo</label>
+                <input type="text" value={userName} readOnly className="w-full h-10 px-3 rounded-lg border border-[#E2E8F0] text-sm text-[#1E293B] bg-[#F8FAFC]" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-[#64748B] mb-1">
-                  Clínica
-                </label>
-                <input
-                  type="text"
-                  value={clinicName}
-                  readOnly
-                  className="w-full h-10 px-3 rounded-lg border border-[#E2E8F0] text-sm text-[#1E293B] bg-[#F8FAFC]"
-                />
+                <label className="block text-xs font-medium text-[#64748B] mb-1">Clínica</label>
+                <input type="text" value={clinicName} readOnly className="w-full h-10 px-3 rounded-lg border border-[#E2E8F0] text-sm text-[#1E293B] bg-[#F8FAFC]" />
               </div>
             </div>
-
             <button
               onClick={() => setShowProfileModal(false)}
               className="w-full h-10 mt-6 rounded-lg bg-[#0F3460] text-white text-sm font-medium hover:bg-[#0A2540] transition-colors"
@@ -262,7 +216,6 @@ const userInitial = userName[0]?.toUpperCase() || "U"
           </div>
         </div>
       )}
-
     </>
   )
 }

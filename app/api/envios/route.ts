@@ -23,7 +23,7 @@ export async function POST(req: Request) {
       return Response.json({ error: "Clínica não encontrada" }, { status: 404 })
     }
 
-    // Verificar quantas tentativas já foram feitas para esse paciente
+    // Verificar quantas tentativas já foram feitas
     const tentativasResult = await pool.query(
       `SELECT COUNT(*) as total FROM "ContactAttempt"
        WHERE "pacienteId" = $1 AND "clinicaId" = $2`,
@@ -31,23 +31,18 @@ export async function POST(req: Request) {
     )
     const totalTentativas = parseInt(tentativasResult.rows[0]?.total) || 0
 
-    // Máximo de 3 tentativas por paciente
     if (totalTentativas >= 3) {
       return Response.json({ error: "Máximo de tentativas atingido" }, { status: 400 })
     }
 
     const numeroDaTentativa = totalTentativas + 1
 
-    // Calcular próxima tentativa baseada no número da tentativa atual
-    // Tentativa 1 → próxima em 7 dias
-    // Tentativa 2 → próxima em 14 dias
-    // Tentativa 3 → última, não há próxima
     const diasParaProxima = numeroDaTentativa === 1 ? 7 : numeroDaTentativa === 2 ? 14 : null
     const proximaTentativa = diasParaProxima
       ? new Date(Date.now() + diasParaProxima * 24 * 60 * 60 * 1000)
       : null
 
-    // Registrar a tentativa na tabela ContactAttempt
+    // Registrar a tentativa
     await pool.query(
       `INSERT INTO "ContactAttempt" 
        ("pacienteId", "clinicaId", "criadoEm", "tentativaNumero", tipo)
@@ -55,19 +50,19 @@ export async function POST(req: Request) {
       [pacienteId, clinicaId, numeroDaTentativa]
     )
 
-    // Atualizar status do paciente para 'em_contato'
-    await pool.query(
-      `UPDATE "Paciente" SET status = 'em_contato' WHERE id = $1`,
-      [pacienteId]
-    )
+    // Definir novo status: sem_resposta só na 3ª, senão em_contato
+    const novoStatus = numeroDaTentativa === 3 ? 'aguardando_resposta' : 'contatado'
 
-    // Se for a 3ª tentativa, marcar paciente como sem_resposta
-    if (numeroDaTentativa === 3) {
-      await pool.query(
-        `UPDATE "Paciente" SET status = 'sem_resposta' WHERE id = $1`,
-        [pacienteId]
-      )
-    }
+    // Atualizar paciente: status, tentativaAtual, ultimaTentativa e atualizadoEm
+    await pool.query(
+      `UPDATE "Paciente" SET
+         status = $1::text::"StatusPaciente",
+         "tentativaAtual" = $2,
+         "ultimaTentativa" = NOW(),
+         "atualizadoEm" = NOW()
+       WHERE id = $3 AND "clinicaId" = $4`,
+      [novoStatus, numeroDaTentativa, pacienteId, clinicaId]
+    )
 
     return Response.json({
       success: true,

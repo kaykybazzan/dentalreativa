@@ -3,6 +3,30 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { pool } from "@/lib/db";
 import { aplicarRisco } from "@/lib/calcularRisco";
 
+function gerarMesesPeriodo(periodo: string, dataInicio: string | null, dataFim: string | null) {
+  const meses = []
+  const hoje = new Date()
+  let inicio: Date
+
+  if (periodo === "7d") inicio = new Date(hoje.getTime() - 7 * 24 * 60 * 60 * 1000)
+  else if (periodo === "90d") inicio = new Date(hoje.getTime() - 90 * 24 * 60 * 60 * 1000)
+  else if (periodo === "custom" && dataInicio) inicio = new Date(dataInicio)
+  else inicio = new Date(hoje.getTime() - 30 * 24 * 60 * 60 * 1000) // 30d default
+
+  const atual = new Date(inicio.getFullYear(), inicio.getMonth(), 1)
+  const fim = new Date(hoje.getFullYear(), hoje.getMonth(), 1)
+
+  while (atual <= fim) {
+    const nomeMes = atual.toLocaleString('en-US', { month: 'short' })
+    const ano = String(atual.getFullYear()).slice(2)
+    meses.push({
+      label: `${nomeMes}/${ano}`,
+    })
+    atual.setMonth(atual.getMonth() + 1)
+  }
+  return meses
+}
+
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) {
@@ -124,6 +148,17 @@ export async function GET(req: Request) {
       [clinicaId]
     );
 
+    // Gerar todos os meses do período com zero como fallback
+    const mesesCompletos = gerarMesesPeriodo(periodo, dataInicio, dataFim)
+    const evolucaoComZeros = mesesCompletos.map(mes => {
+      const encontrado = evolucaoMensal.rows.find((r: any) => r.mes === mes.label)
+      return {
+        mes: mes.label,
+        total_envios: encontrado ? parseInt(encontrado.total_envios) : 0,
+        recuperados: encontrado ? parseInt(encontrado.recuperados) : 0,
+      }
+    })
+
     // ── PACIENTES EM RISCO DETALHADO ─────────────────────────
     // Lista dos pacientes em risco para exibir na tabela do relatório
     const pacientesEmRisco = comRisco.map((p) => ({
@@ -204,7 +239,7 @@ export async function GET(req: Request) {
         recuperados: totalRecuperados,
         enviosPorTentativa: enviosPorTentativa.rows,
       },
-      evolucaoMensal: evolucaoMensal.rows,
+      evolucaoMensal: evolucaoComZeros,
       pacientesEmRisco,
       recuperados: recuperadosResult.rows,
       performanceMensagens: performance,

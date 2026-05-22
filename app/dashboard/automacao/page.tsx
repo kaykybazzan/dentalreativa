@@ -9,14 +9,12 @@ import {
   Zap,
   BarChart3,
   Settings,
-  Bell,
   LogOut,
   ChevronDown,
   AlertTriangle,
   Search,
   CheckCircle,
   Calendar,
-  Eye,
   SlidersHorizontal,
   X,
 } from "lucide-react"
@@ -58,11 +56,7 @@ const navItems = [
   { id: "settings", label: "Configurações", icon: Settings },
 ]
 
-const notifications = [
-  { id: 1, type: "alert", text: "5 novos pacientes em risco hoje", time: "Há 2 horas" },
-  { id: 2, type: "whatsapp", text: "Maria Silva respondeu sua mensagem", time: "Há 3 horas" },
-  { id: 3, type: "calendar", text: "João Santos confirmou consulta", time: "Há 5 horas" },
-]
+
 
 export default function AutomacaoPage() {
   const router = useRouter()
@@ -71,7 +65,6 @@ export default function AutomacaoPage() {
   const [clinicCity, setClinicCity] = useState("")
   const [userName, setUserName] = useState("")
   const [activeNav, setActiveNav] = useState("automation")
-  const [showNotifications, setShowNotifications] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showProfileModal, setShowProfileModal] = useState(false)
 
@@ -82,6 +75,8 @@ export default function AutomacaoPage() {
   const [enviando, setEnviando] = useState<Record<string, boolean>>({})
   // Controle de quais pacientes já foram enviados nessa sessão
   const [enviados, setEnviados] = useState<Record<string, boolean>>({})
+  // Controle de quais pacientes estão aguardando confirmação de envio
+  const [aguardandoConfirmacao, setAguardandoConfirmacao] = useState<Record<string, boolean>>({})
   // Mapeamento de número de tentativas por paciente
   const [tentativas, setTentativas] = useState<Record<string, number>>({})
 
@@ -90,12 +85,10 @@ export default function AutomacaoPage() {
   const [message2] = useState("[nome], temos horários disponíveis essa semana na [clinica]. Posso reservar um para você?")
   const [message3] = useState("Oi [nome]! Queremos ter certeza de que está tudo bem. Podemos ajudar com algo? Entre em contato com a [clinica].")
 
-  // UI states
-  const [expandedMessage, setExpandedMessage] = useState<string | null>(null)
-
   // Filtros rápidos
   const [sortBy, setSortBy] = useState<"urgency" | "value">("urgency")
   const [showOnlyUnsent, setShowOnlyUnsent] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
 
   // Painel de filtros avançados
   const [showFilterPanel, setShowFilterPanel] = useState(false)
@@ -127,8 +120,32 @@ export default function AutomacaoPage() {
 
   const filteredAndSortedPatients = fila
     .filter((p) => {
-      const enviado = enviados[p.id]
-      if (showOnlyUnsent && enviado) return false
+      // Filtro: busca por nome ou telefone
+      if (searchQuery.trim() !== "") {
+        const q = searchQuery.toLowerCase()
+        const nomeMatch = p.nome?.toLowerCase().includes(q)
+        const telefoneMatch = p.telefone?.includes(q)
+        if (!nomeMatch && !telefoneMatch) return false
+      }
+
+      // Filtro: apenas não enviados
+      if (showOnlyUnsent && enviados[p.id]) return false
+
+      // Filtro: tentativa
+      if (activeFilterAttempt !== "all" && p.attempt !== activeFilterAttempt) return false
+
+      // Filtro: procedimento
+      if (activeFilterProcedures.length > 0 && !activeFilterProcedures.includes(p.procedure)) return false
+
+      // Filtro: valor mínimo
+      if (activeFilterMinValue !== "" && p.valorTicket < parseFloat(activeFilterMinValue)) return false
+
+      // Filtro: valor máximo
+      if (activeFilterMaxValue !== "" && p.valorTicket > parseFloat(activeFilterMaxValue)) return false
+
+      // Filtro: dias mínimos sem consulta
+      if (activeFilterMinDays !== "" && p.diasSemConsulta < parseInt(activeFilterMinDays)) return false
+
       return true
     })
     .sort((a, b) => {
@@ -223,6 +240,21 @@ export default function AutomacaoPage() {
           }
         }))
         setFila(mappedFila)
+
+        // RESTAURAR estado de enviados com base no banco
+        const enviadosIniciais: Record<string, boolean> = {}
+        mappedFila.forEach((p) => {
+          // Paciente já foi contatado se: tem mais de 1 tentativa já registrada,
+          // ou se o status no banco é 'em_contato' ou 'sem_resposta'
+          const jaFoiContatado =
+            (p.attempt && parseInt(p.attempt) > 1) ||
+            p.status === "em_contato" ||
+            p.status === "sem_resposta"
+          if (jaFoiContatado) {
+            enviadosIniciais[p.id] = true
+          }
+        })
+        setEnviados(enviadosIniciais)
       }
     } catch (error) {
       console.error("Erro ao carregar fila:", error)
@@ -251,16 +283,9 @@ export default function AutomacaoPage() {
       // 3. Abrir o WhatsApp em nova aba
       window.open(linkWhatsApp, "_blank")
 
-      // 4. Registrar o envio no banco
-      await fetch("/api/envios", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pacienteId: paciente.id }),
-      })
-
-      // 5. Marcar como enviado nessa sessão
-      setEnviados((prev) => ({ ...prev, [paciente.id]: true }))
-      setTentativas((prev) => ({ ...prev, [paciente.id]: tentativa }))
+      // Mostrar barra de confirmação em vez de marcar imediatamente
+      setAguardandoConfirmacao((prev) => ({ ...prev, [paciente.id]: true }))
+      setEnviando((prev) => ({ ...prev, [paciente.id]: false }))
 
     } catch (error) {
       console.error("Erro ao enviar:", error)
@@ -269,23 +294,59 @@ export default function AutomacaoPage() {
     }
   }
 
-  const handlePacienteVoltou = async (paciente: PacienteFila) => {
+  const handleConfirmarEnvio = async (paciente: PacienteFila) => {
     try {
-      await fetch("/api/envios/recuperado", {
+      await fetch("/api/envios", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          pacienteId: paciente.id,
-          valorRecuperado: paciente.valorTicket,
-        }),
+        body: JSON.stringify({ pacienteId: paciente.id }),
       })
-
-      // Remover da fila após marcar como recuperado
-      setFila((prev) => prev.filter((p) => p.id !== paciente.id))
+      setEnviados((prev) => ({ ...prev, [paciente.id]: true }))
+      setAguardandoConfirmacao((prev) => ({ ...prev, [paciente.id]: false }))
     } catch (error) {
-      console.error("Erro ao marcar como recuperado:", error)
+      console.error("Erro ao confirmar envio:", error)
     }
   }
+
+  const handleCancelarEnvio = (pacienteId: string) => {
+    setAguardandoConfirmacao((prev) => ({ ...prev, [pacienteId]: false }))
+  }
+
+  const handlePacienteVoltou = async (paciente: PacienteFila) => {
+  const valorStr = window.prompt(
+    `Qual o valor da consulta de ${paciente.name}?\n(deixe em branco para usar R$ ${paciente.valorTicket.toFixed(2).replace(".", ",")})`
+  )
+  // Se clicou em Cancelar
+  if (valorStr === null) return
+
+  const valor = valorStr.trim() === ""
+    ? paciente.valorTicket
+    : parseFloat(valorStr.replace(",", "."))
+
+  if (isNaN(valor)) {
+    alert("Valor inválido. Tente novamente.")
+    return
+  }
+
+  try {
+    await fetch("/api/envios/recuperado", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pacienteId: paciente.id,
+        valorRecuperado: valor,
+      }),
+    })
+    setFila((prev) => prev.filter((p) => p.id !== paciente.id))
+    setEnviados((prev) => {
+      const novo = { ...prev }
+      delete novo[paciente.id]
+      return novo
+    })
+  } catch (error) {
+    console.error("Erro ao marcar como recuperado:", error)
+  }
+}
 
   const handleNavigation = (navId: string) => {
     setActiveNav(navId)
@@ -528,34 +589,13 @@ export default function AutomacaoPage() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#94A3B8]" />
                 <input
                   placeholder="Buscar pacientes..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   className="h-9 w-56 pl-9 pr-3 rounded-lg border border-[#E2E8F0] text-sm bg-[#F8FAFC] text-[#1E293B] placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[rgba(15,52,96,0.12)] focus:border-[#0F3460]"
                 />
               </div>
-              <div className="relative">
-                <button
-                  onClick={() => setShowNotifications(!showNotifications)}
-                  className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-[#E2E8F0] bg-white text-[#64748B] hover:bg-[#F8FAFC] transition-colors"
-                >
-                  <Bell className="h-4 w-4" />
-                  <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-[#EF4444]" />
-                </button>
-                {showNotifications && (
-                  <div className="absolute right-0 top-11 z-50 w-72 rounded-xl border border-[#E2E8F0] bg-white shadow-lg">
-                    <div className="p-3 border-b border-[#E2E8F0]">
-                      <p className="text-sm font-semibold text-[#1E293B]">Notificações</p>
-                    </div>
-                    {notifications.map((n) => (
-                      <div key={n.id} className="p-3 border-b border-[#E2E8F0] last:border-0 hover:bg-[#F8FAFC] cursor-pointer">
-                        <p className="text-sm text-[#1E293B]">{n.text}</p>
-                        <p className="text-xs text-[#94A3B8] mt-0.5">{n.time}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
             </div>
           </div>
-
           {/* LINHA 2: Subtítulo */}
           <div className="mb-6">
             <p className="text-sm text-[#64748B]">Veja quem precisa de contato hoje e envie mensagens com 1 clique pelo WhatsApp.</p>
@@ -639,8 +679,8 @@ export default function AutomacaoPage() {
             <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden shadow-sm">
 
               {/* Header da tabela */}
-              <div className="bg-[#F8FAFC] border-b border-[#E2E8F0] px-5 py-3 grid grid-cols-8 gap-3 text-xs uppercase text-[#64748B] font-medium tracking-wider">
-                <div className="col-span-2">Nome</div>
+              <div className="bg-[#F8FAFC] border-b border-[#E2E8F0] px-5 py-3 grid gap-3 text-xs uppercase text-[#64748B] font-medium tracking-wider" style={{gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr 2fr'}}>
+                <div>Nome</div>
                 <div>Última consulta</div>
                 <div>Dias sem voltar</div>
                 <div>Tentativa</div>
@@ -652,10 +692,10 @@ export default function AutomacaoPage() {
               {/* Linhas */}
               {filteredAndSortedPatients.map((patient) => (
                 <div key={patient.id}>
-                  <div className="border-b border-[#F1F5F9] px-5 py-4 grid grid-cols-8 gap-3 items-center hover:bg-[#F8FAFC] transition-colors">
+                  <div className="border-b border-[#F1F5F9] px-5 py-4 grid gap-3 items-center hover:bg-[#F8FAFC] transition-colors" style={{gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr 2fr'}}>
 
                     {/* Nome */}
-                    <div className="col-span-2 flex items-center gap-3">
+                    <div className="flex items-center gap-3">
                       <div className={`${patient.avatarColor ?? "bg-[#3B82F6]"} w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0`}>
                         {patient.avatar ?? ""}
                       </div>
@@ -701,26 +741,24 @@ export default function AutomacaoPage() {
 
                     {/* Ação */}
                     <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setExpandedMessage(expandedMessage === patient.id ? null : patient.id)}
-                        className="text-[#94A3B8] hover:text-[#64748B] transition-colors"
-                        title="Ver mensagem"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </button>
-                      {enviados[patient.id] ? (
-                        <>
-                          <div className="flex items-center gap-1 text-[#10B981]">
-                            <CheckCircle className="h-4 w-4" />
-                            <span className="text-xs font-medium">Enviado ✓</span>
+                      {aguardandoConfirmacao[patient.id] ? (
+                        <span className="flex items-center gap-1.5 text-xs text-[#F59E0B] font-medium">
+                          <span className="w-2 h-2 rounded-full bg-[#F59E0B] animate-pulse" />
+                          Aguardando...
+                        </span>
+                      ) : enviados[patient.id] ? (
+                        <div className="flex flex-col gap-1.5">
+                          <div className="flex items-center gap-1.5 text-[#10B981]">
+                            <CheckCircle className="h-3.5 w-3.5 shrink-0" />
+                            <span className="text-xs font-medium">Enviado</span>
                           </div>
-                          <Button
+                          <button
                             onClick={() => handlePacienteVoltou(patient)}
-                            className="bg-[#10B981] hover:bg-[#059669] text-white text-xs h-8 px-3 flex items-center gap-1.5 rounded-lg"
+                            className="text-xs text-[#64748B] hover:text-[#10B981] underline underline-offset-2 transition-colors text-left"
                           >
-                            Paciente voltou
-                          </Button>
-                        </>
+                            Paciente voltou?
+                          </button>
+                        </div>
                       ) : (
                         <Button
                           onClick={() => handleEnviarWhatsApp(patient)}
@@ -738,13 +776,34 @@ export default function AutomacaoPage() {
 
                   </div>
 
-                  {/* Mensagem expandida */}
-                  {expandedMessage === patient.id && (
-                    <div className="bg-[#F8FAFC] border-b border-[#E2E8F0] px-5 py-3">
-                      <p className="text-xs text-[#64748B] mb-1 font-medium">Mensagem que será enviada:</p>
-                      <p className="text-sm text-[#1E293B]">{patient.message ?? "Carregando mensagem..."}</p>
+                  {/* Confirmação de envio */}
+                  {aguardandoConfirmacao[patient.id] && (
+                    <div className="border-b border-[#FDE68A] bg-[#FFFBEB] px-5 py-3 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-[#92400E]">
+                          Você enviou a mensagem para {patient.name}?
+                        </span>
+                        <span className="text-xs text-[#A16207]">
+                          (confirme para registrar a tentativa no sistema)
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleConfirmarEnvio(patient)}
+                          className="bg-[#10B981] text-white text-sm font-medium px-4 py-1.5 rounded-lg hover:bg-[#059669] transition-colors"
+                        >
+                          ✓ Sim, enviei
+                        </button>
+                        <button
+                          onClick={() => handleCancelarEnvio(patient.id)}
+                          className="text-sm text-[#64748B] hover:text-[#1E293B] px-3 py-1.5 rounded-lg border border-[#E2E8F0] hover:bg-[#F8FAFC] transition-colors"
+                        >
+                          Não foi desta vez
+                        </button>
+                      </div>
                     </div>
                   )}
+
                 </div>
               ))}
 
@@ -770,7 +829,11 @@ export default function AutomacaoPage() {
                 <p className="text-xs text-[#64748B]">
                   Mostrando {filteredAndSortedPatients.length} de {fila.length} pacientes
                 </p>
-                <Button variant="outline" className="text-[#0F3460] border-[#0F3460] hover:bg-[#0F3460] hover:text-white text-xs h-8">
+                <Button
+                  variant="outline"
+                  onClick={() => router.push("/dashboard/pacientes")}
+                  className="text-[#0F3460] border-[#0F3460] hover:bg-[#0F3460] hover:text-white text-xs h-8"
+                >
                   Ver todos os {fila.length} pacientes
                 </Button>
               </div>

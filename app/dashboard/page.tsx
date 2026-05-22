@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { 
@@ -10,7 +10,6 @@ import {
   BarChart3,
   Settings,
   Search, 
-  Bell,
   HelpCircle,
   TrendingUp,
   Clock,
@@ -21,7 +20,11 @@ import {
   ChevronDown,
   MessageCircle,
   DollarSign,
-  LogOut
+  LogOut,
+  Bell,
+  CheckCircle,
+  X,
+  ChevronRight,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sidebar } from "@/components/sidebar"
@@ -45,6 +48,7 @@ import {
   ResponsiveContainer,
   Legend
 } from "recharts"
+import { DateRangePicker } from "@/components/date-range-picker"
 
 type Patient = {
   id: number
@@ -56,6 +60,9 @@ type Patient = {
   timeAwayMonths: number
   procedure: string
   action: "lembrete" | "agendamento" | "direto"
+  status: string
+  avatarColor: string
+  daysSinceVisit: number
 }
 
 const samplePatients: Patient[] = [
@@ -68,7 +75,10 @@ const samplePatients: Patient[] = [
     timeAway: "5 meses",
     timeAwayMonths: 5,
     procedure: "Limpeza",
-    action: "lembrete"
+    action: "lembrete",
+    status: "em_risco",
+    avatarColor: "bg-[#3B82F6]",
+    daysSinceVisit: 150
   },
   {
     id: 2,
@@ -79,7 +89,10 @@ const samplePatients: Patient[] = [
     timeAway: "6 meses",
     timeAwayMonths: 6,
     procedure: "Clareamento",
-    action: "agendamento"
+    action: "agendamento",
+    status: "em_contato",
+    avatarColor: "bg-[#10B981]",
+    daysSinceVisit: 180
   },
   {
     id: 3,
@@ -90,7 +103,10 @@ const samplePatients: Patient[] = [
     timeAway: "7 meses",
     timeAwayMonths: 7,
     procedure: "Tratamento canal",
-    action: "direto"
+    action: "direto",
+    status: "sem_resposta",
+    avatarColor: "bg-[#8B5CF6]",
+    daysSinceVisit: 210
   },
   {
     id: 4,
@@ -101,50 +117,40 @@ const samplePatients: Patient[] = [
     timeAway: "6 meses",
     timeAwayMonths: 6,
     procedure: "Implante",
-    action: "agendamento"
+    action: "agendamento",
+    status: "recuperado",
+    avatarColor: "bg-[#F59E0B]",
+    daysSinceVisit: 180
   }
 ]
 
-const chartData = [
-  { month: "Nov", emRisco: 8, recuperados: 2 },
-  { month: "Dez", emRisco: 12, recuperados: 4 },
-  { month: "Jan", emRisco: 15, recuperados: 5 },
-  { month: "Fev", emRisco: 18, recuperados: 7 },
-  { month: "Mar", emRisco: 22, recuperados: 9 },
-  { month: "Abr", emRisco: 24, recuperados: 11 }
-]
-
-const notifications = [
-  {
-    id: 1,
-    type: "alert",
-    text: "5 novos pacientes em risco hoje",
-    time: "Há 2 horas"
-  },
-  {
-    id: 2,
-    type: "whatsapp",
-    text: "Maria Silva respondeu sua mensagem",
-    time: "Há 3 horas"
-  },
-  {
-    id: 3,
-    type: "calendar",
-    text: "João Santos confirmou consulta",
-    time: "Há 5 horas"
-  }
-]
+const statusConfig: Record<string, { label: string; bgColor: string; textColor: string }> = {
+  em_risco: { label: "Em risco", bgColor: "bg-[#FEF2F2]", textColor: "text-[#DC2626]" },
+  ativo: { label: "Ativo", bgColor: "bg-[#F0FDF4]", textColor: "text-[#15803D]" },
+  em_contato: { label: "Contatado", bgColor: "bg-[#EFF6FF]", textColor: "text-[#1D4ED8]" },
+  recuperado: { label: "Recuperado", bgColor: "bg-[#F0FDF4]", textColor: "text-[#15803D]" },
+  sem_resposta: { label: "Sem resposta", bgColor: "bg-[#FEFCE8]", textColor: "text-[#A16207]" },
+  nao_contatar: { label: "Não contatar", bgColor: "bg-[#F8FAFC]", textColor: "text-[#475569]" },
+}
 
 export default function DashboardPage() {
   const router = useRouter()
   const { data: session } = useSession()
   const [activeNav, setActiveNav] = useState("dashboard")
-  const [showNotifications, setShowNotifications] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [showSearchDropdown, setShowSearchDropdown] = useState(false)
   const [dados, setDados] = useState<any>(null)
+  const [todosPacientes, setTodosPacientes] = useState<any[]>([])
   const [carregando, setCarregando] = useState(true)
-  const [periodoSelecionado, setPeriodoSelecionado] = useState("90")
+  const [periodoSelecionado, setPeriodoSelecionado] = useState<"6m" | "1a" | "2a" | "custom">("6m")
+  const [showCustomPicker, setShowCustomPicker] = useState(false)
+  const [customLabel, setCustomLabel] = useState<string | null>(null)
+  const [customDates, setCustomDates] = useState<{ from: string; to: string } | null>(null)
+  const customPickerRef = useRef<HTMLDivElement>(null)
+  const notifRef = useRef<HTMLDivElement>(null)
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [notificacoes, setNotificacoes] = useState<any[]>([])
+  const [badgeCount, setBadgeCount] = useState(0)
 
   const userName = session?.user?.name || "Usuário"
   const userEmail = session?.user?.email || ""
@@ -154,31 +160,69 @@ export default function DashboardPage() {
   const userInitial = userName[0]?.toUpperCase() || "U"
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      if (localStorage.getItem("onboarding_done") !== "true") {
-        router.push("/onboarding")
-        return
-      }
-      
-      setActiveNav("dashboard")
+  if (typeof window !== "undefined") {
+    if (localStorage.getItem("onboarding_done") !== "true") {
+      router.push("/onboarding")
+      return
+    }
+    setActiveNav("dashboard")
+
+    fetch("/api/pacientes")
+  .then(res => res.json())
+  .then(data => setTodosPacientes(data))
+  .catch(() => {})
+
+  fetch("/api/notificacoes")
+    .then(res => res.json())
+    .then(data => {
+      setNotificacoes(data.notificacoes || [])
+      setBadgeCount(data.badgeCount || 0)
+    })
+    .catch(() => {})
     }
   }, [router])
 
   useEffect(() => {
-    fetch(`/api/dashboard?periodo=${periodoSelecionado}`)
+    setCarregando(true)
+    let url = `/api/dashboard?periodo=${periodoSelecionado}`
+    if (periodoSelecionado === "custom" && customDates) {
+      url += `&dataInicio=${customDates.from}&dataFim=${customDates.to}`
+    }
+    fetch(url)
       .then((res) => res.json())
       .then((data) => {
-        setDados(data)
+        if (!data.error) setDados(data)
         setCarregando(false)
       })
       .catch(() => setCarregando(false))
-  }, [periodoSelecionado])
+  }, [periodoSelecionado, customDates])
+
+  const dadosGrafico = Array.isArray(dados?.grafico) ? dados.grafico : []
+
+  const notifications: { id: number; type: string; text: string; time: string }[] = (
+    dados?.notificacoes ?? []
+  ).map((n: { tipo: string; texto: string; tempo: string }, i: number) => ({
+    id: i,
+    type: n.tipo === "risco" ? "alert" : "whatsapp",
+    text: n.texto,
+    time: n.tempo,
+  }))
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement
       if (!target.closest(".search-container")) {
         setShowSearchDropdown(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (customPickerRef.current && !customPickerRef.current.contains(e.target as Node)) {
+        setShowCustomPicker(false)
       }
     }
     document.addEventListener("mousedown", handleClickOutside)
@@ -195,16 +239,27 @@ export default function DashboardPage() {
     return () => document.removeEventListener("keydown", handleEscape)
   }, [])
 
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (notifRef.current && !notifRef.current.contains(target) && !target.closest("#notif-button")) {
+        setShowNotifications(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
+
   const handleLogout = () => {
     router.push("/")
   }
 
-  const searchResults = searchQuery.trim() === "" 
-    ? []
-    : samplePatients.filter(patient => 
-        patient.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        patient.phone.includes(searchQuery)
-      )
+  const searchResults = searchQuery.trim() === ""
+  ? []
+  : todosPacientes.filter((p: any) =>
+      p.nome?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.telefone?.includes(searchQuery)
+    )
 
   const handleWhatsApp = (phone: string, name: string) => {
     const cleanPhone = phone.replace(/\D/g, "")
@@ -282,91 +337,215 @@ export default function DashboardPage() {
                     </div>
                   ) : (
                     <div className="divide-y divide-[#E2E8F0]">
-                      {searchResults.map((patient) => {
-                        const config = statusConfig[patient.status]
-                        return (
-                          <button
-                            key={patient.id}
-                            onClick={() => {
-                              setSearchQuery("")
-                              setShowSearchDropdown(false)
-                              router.push(`/dashboard/pacientes?patient=${patient.id}`)
-                            }}
-                            className="w-full p-3 hover:bg-[#F8FAFC] transition-colors text-left flex items-center gap-3"
-                          >
-                            <div className={`flex h-8 w-8 items-center justify-center rounded-full text-white text-sm font-semibold flex-shrink-0 ${patient.avatarColor}`}>
-                              {patient.name.split(" ").map(n => n[0]).join("").substring(0, 1)}
+                      {searchResults.map((patient: any) => {
+                      const config = statusConfig[patient.status] ?? { label: "Ativo", bgColor: "bg-[#F0FDF4]", textColor: "text-[#15803D]" }
+                      const ultimaConsulta = patient.ultimaConsulta ? new Date(patient.ultimaConsulta) : null
+                      const dias = ultimaConsulta
+                        ? Math.floor((Date.now() - ultimaConsulta.getTime()) / (1000 * 60 * 60 * 24))
+                        : 0
+                      return (
+                        <button
+                          key={patient.id}
+                          onClick={() => {
+                            setSearchQuery("")
+                            setShowSearchDropdown(false)
+                            router.push(`/dashboard/pacientes`)
+                          }}
+                          className="w-full p-3 hover:bg-[#F8FAFC] transition-colors text-left flex items-center gap-3"
+                        >
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#3B82F6] text-white text-sm font-semibold flex-shrink-0">
+                            {patient.nome?.[0]?.toUpperCase() ?? "?"}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-semibold text-[#1E293B]">{patient.nome}</p>
+                              <span className={`text-xs px-2 py-0.5 rounded-full ${config.bgColor} ${config.textColor} font-medium`}>
+                                {config.label}
+                              </span>
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <p className="text-sm font-semibold text-[#1E293B]">{patient.name}</p>
-                                <span className={`text-xs px-2 py-0.5 rounded-full ${config.bgColor} ${config.textColor} font-medium`}>
-                                  {config.label}
-                                </span>
-                              </div>
-                              <p className="text-xs text-[#64748B] mt-0.5">{patient.daysSinceVisit} dias</p>
-                            </div>
-                          </button>
-                        )
-                      })}
+                            <p className="text-xs text-[#64748B] mt-0.5">{dias} dias sem consulta</p>
+                          </div>
+                        </button>
+                      )
+                    })}
                     </div>
                   )}
                 </div>
               )}
             </div>
-            
-            {/* Notification Bell */}
+
+            {/* Sino de notificações */}
             <div className="relative">
-              <button 
-                onClick={() => setShowNotifications(!showNotifications)}
-                className="relative p-2 text-[#64748B] hover:text-[#1E293B] transition-colors"
+              <button
+              id="notif-button"
+              onClick={() => {
+                if (!showNotifications) {
+                  fetch("/api/notificacoes")
+                    .then(res => res.json())
+                    .then(data => {
+                      setNotificacoes(data.notificacoes || [])
+                      setBadgeCount(data.badgeCount || 0)
+                    })
+                    .catch(() => {})
+                }
+                setShowNotifications(!showNotifications)
+              }}
+                className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-[#E2E8F0] bg-white text-[#64748B] hover:bg-[#F8FAFC] transition-colors"
               >
-                <Bell className="h-5 w-5" />
-                <span className="absolute -top-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-[#EF4444] text-[10px] font-medium text-white">
-                  3
-                </span>
+                <Bell className="h-4 w-4" />
+                {badgeCount > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#EF4444] text-[10px] font-bold text-white">
+                    {badgeCount > 9 ? "9+" : badgeCount}
+                  </span>
+                )}
               </button>
-              
-              {/* Notifications Dropdown */}
+
               {showNotifications && (
-                <div className="absolute right-0 top-12 w-80 bg-white rounded-xl border border-[#E2E8F0] shadow-lg z-50">
-                  <div className="p-4 border-b border-[#E2E8F0]">
-                    <h4 className="text-sm font-semibold text-[#1E293B]">Notificações</h4>
-                  </div>
-                  <div className="divide-y divide-[#E2E8F0]">
-                    {notifications.map((notification) => (
-                      <div key={notification.id} className="p-4 hover:bg-[#F8FAFC] transition-colors cursor-pointer">
-                        <div className="flex items-start gap-3">
-                          <div className={`flex h-8 w-8 items-center justify-center rounded-full shrink-0 ${
-                            notification.type === "alert" ? "bg-[#FEE2E2]" :
-                            notification.type === "whatsapp" ? "bg-[#D1FAE5]" : "bg-[#DBEAFE]"
-                          }`}>
-                            {notification.type === "alert" ? (
-                              <AlertTriangle className="h-4 w-4 text-[#EF4444]" />
-                            ) : notification.type === "whatsapp" ? (
-                              <MessageCircle className="h-4 w-4 text-[#10B981]" />
-                            ) : (
-                              <Calendar className="h-4 w-4 text-[#3B82F6]" />
-                            )}
-                          </div>
-                          <div>
-                            <p className="text-sm text-[#1E293B]">{notification.text}</p>
-                            <p className="text-xs text-[#94A3B8] mt-0.5">{notification.time}</p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="p-3 border-t border-[#E2E8F0]">
-                    <button className="w-full text-center text-sm text-[#1E3A5F] font-medium hover:underline">
-                      Ver todas as notificações
+                <div
+                  ref={notifRef}
+                  className="absolute right-0 top-11 w-80 bg-white rounded-xl border border-[#E2E8F0] shadow-xl z-50 overflow-hidden"
+                >
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-[#E2E8F0]">
+                    <p className="text-sm font-semibold text-[#1E293B]">Notificações</p>
+                    <button onClick={() => setShowNotifications(false)}>
+                      <X className="h-4 w-4 text-[#94A3B8] hover:text-[#1E293B]" />
                     </button>
+                  </div>
+
+                  <div className="max-h-[480px] overflow-y-auto">
+
+                    {/* Resumo do dia */}
+                    {notificacoes.find(n => n.tipo === "resumo") && (() => {
+                      const resumo = notificacoes.find(n => n.tipo === "resumo")
+                      return (
+                        <div className="p-4 bg-[#F8FAFC] border-b border-[#E2E8F0]">
+                          <p className="text-[11px] font-semibold text-[#64748B] uppercase tracking-wider mb-2">📌 Resumo do dia</p>
+                          <div className="space-y-1">
+                            <p className="text-sm text-[#1E293B]"><span className="font-semibold">{resumo.emRisco}</span> pacientes em risco</p>
+                            <p className="text-sm text-[#1E293B]"><span className="font-semibold">{resumo.aguardandoContato}</span> aguardando contato</p>
+                            <p className="text-sm font-semibold text-[#10B981]">R$ {resumo.receitaRecuperavel.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} recuperáveis</p>
+                          </div>
+                          <button
+                            onClick={() => { router.push("/dashboard/automacao"); setShowNotifications(false) }}
+                            className="mt-3 w-full h-8 rounded-lg bg-[#0F3460] text-white text-xs font-medium hover:bg-[#0A2540] transition-colors flex items-center justify-center gap-1"
+                          >
+                            Ir para Central de Envios <ChevronRight className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      )
+                    })()}
+
+                    {/* Críticos */}
+                    {notificacoes.filter(n => n.tipo === "critico").length > 0 && (
+                      <div className="border-b border-[#E2E8F0]">
+                        <p className="px-4 pt-3 pb-1 text-[11px] font-semibold text-[#64748B] uppercase tracking-wider">🔴 Prioridade</p>
+                        {notificacoes.filter(n => n.tipo === "critico").map((n) => (
+                          <div key={n.id} className="px-4 py-3 hover:bg-[#FEF2F2] transition-colors cursor-pointer border-t border-[#F1F5F9]"
+                            onClick={() => { router.push("/dashboard/automacao"); setShowNotifications(false) }}>
+                            <div className="flex items-start gap-2">
+                              <AlertTriangle className="h-4 w-4 text-[#EF4444] shrink-0 mt-0.5" />
+                              <div>
+                                <p className="text-sm font-medium text-[#1E293B]">{n.pacienteNome}</p>
+                                <p className="text-xs text-[#64748B]">{n.dias} dias sem consulta</p>
+                                {n.valor > 0 && <p className="text-xs text-[#EF4444] font-medium mt-0.5">Potencial: R$ {n.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {notificacoes.find(n => n.tipo === "critico_mais") && (() => {
+                      const m = notificacoes.find(n => n.tipo === "critico_mais")
+                      return (
+                        <div className="px-4 pb-3 border-b border-[#E2E8F0]">
+                          <button onClick={() => { router.push("/dashboard/automacao"); setShowNotifications(false) }}
+                            className="text-xs text-[#EF4444] font-medium hover:underline">
+                            + {m.restantes} outros críticos na fila →
+                          </button>
+                        </div>
+                      )
+                    })()}
+
+                    {/* Follow-ups */}
+                    {notificacoes.filter(n => n.tipo === "followup").length > 0 && (
+                      <div className="border-b border-[#E2E8F0]">
+                        <p className="px-4 pt-3 pb-1 text-[11px] font-semibold text-[#64748B] uppercase tracking-wider">🔵 Follow-up</p>
+                        {notificacoes.filter(n => n.tipo === "followup").map((n) => (
+                          <div key={n.id} className="px-4 py-3 hover:bg-[#EFF6FF] transition-colors cursor-pointer border-t border-[#F1F5F9]"
+                            onClick={() => { router.push("/dashboard/automacao"); setShowNotifications(false) }}>
+                            <div className="flex items-start gap-2">
+                              <Clock className="h-4 w-4 text-[#3B82F6] shrink-0 mt-0.5" />
+                              <div>
+                                <p className="text-sm font-medium text-[#1E293B]">{n.pacienteNome}</p>
+                                <p className="text-xs text-[#64748B]">Sem resposta há {n.diasSemResposta} dias · {n.tentativa + 1}ª tentativa disponível</p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {notificacoes.find(n => n.tipo === "followup_mais") && (() => {
+                      const m = notificacoes.find(n => n.tipo === "followup_mais")
+                      return (
+                        <div className="px-4 pb-3 border-b border-[#E2E8F0]">
+                          <button onClick={() => { router.push("/dashboard/automacao"); setShowNotifications(false) }}
+                            className="text-xs text-[#3B82F6] font-medium hover:underline">
+                            + {m.restantes} outros aguardando follow-up →
+                          </button>
+                        </div>
+                      )
+                    })()}
+
+                    {/* Recuperados */}
+                    {notificacoes.filter(n => n.tipo === "recuperado").length > 0 && (
+                      <div>
+                        <p className="px-4 pt-3 pb-1 text-[11px] font-semibold text-[#64748B] uppercase tracking-wider">🟢 Resultados</p>
+                        {notificacoes.filter(n => n.tipo === "recuperado").map((n) => (
+                          <div key={n.id} className="px-4 py-3 hover:bg-[#F0FDF4] transition-colors cursor-pointer border-t border-[#F1F5F9]">
+                            <div className="flex items-start gap-2">
+                              <CheckCircle className="h-4 w-4 text-[#10B981] shrink-0 mt-0.5" />
+                              <div>
+                                <p className="text-sm font-medium text-[#1E293B]">{n.pacienteNome} voltou!</p>
+                                {n.valor > 0 && <p className="text-xs text-[#10B981] font-semibold">+ R$ {n.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} recuperados</p>}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {notificacoes.find(n => n.tipo === "recuperado_mais") && (() => {
+                      const m = notificacoes.find(n => n.tipo === "recuperado_mais")
+                      return (
+                        <div className="px-4 pb-3">
+                          <button onClick={() => { router.push("/dashboard/relatorios"); setShowNotifications(false) }}
+                            className="text-xs text-[#10B981] font-medium hover:underline">
+                            + {m.restantes} outros recuperados esta semana →
+                          </button>
+                        </div>
+                      )
+                    })()}
+
+                    {/* Vazio */}
+                    {notificacoes.filter(n => n.tipo !== "resumo").length === 0 && (
+                      <div className="py-10 text-center">
+                        <CheckCircle className="h-8 w-8 text-[#10B981] mx-auto mb-2" />
+                        <p className="text-sm font-medium text-[#1E293B]">Tudo em dia!</p>
+                        <p className="text-xs text-[#64748B] mt-1">Nenhuma ação pendente agora.</p>
+                      </div>
+                    )}
+
                   </div>
                 </div>
               )}
             </div>
-          </div>
+
+          </div>     
         </header>
+
+        
 
         {/* Main Content */}
         <main className="flex-1 overflow-auto p-6">
@@ -437,10 +616,10 @@ export default function DashboardPage() {
             <div className="bg-white rounded-xl border border-[#E2E8F0] p-6">
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-sm text-[#64748B]">Receita recuperada</p>
+                  <p className="text-sm text-[#64748B]">Potencial recuperável</p>
                   <p className="text-3xl font-semibold text-[#1E293B] mt-2">{carregando ? "..." : `R$ ${dados?.cards?.receitaEmRisco?.toLocaleString("pt-BR", { minimumFractionDigits: 2 }) ?? "0,00"}`}</p>
                   <div className="mt-2">
-                    <p className="text-xs text-[#64748B] mt-0.5">receita em risco identificada</p>
+                    <p className="text-xs text-[#64748B] mt-0.5">valor em risco identificado</p>
                   </div>
                 </div>
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#F0FDF4]">
@@ -457,20 +636,62 @@ export default function DashboardPage() {
                 <h3 className="text-base font-medium text-[#1E293B]">Pacientes em risco ao longo do tempo</h3>
                 <HelpCircle className="h-3.5 w-3.5 text-[#94A3B8]" />
               </div>
-              <Select value={periodoSelecionado} onValueChange={setPeriodoSelecionado}>
-                <SelectTrigger className="w-40 h-9 text-sm border-[#E2E8F0]">
-                  <SelectValue placeholder="Selecionar período" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="7">Últimos 7 dias</SelectItem>
-                  <SelectItem value="30">Últimos 30 dias</SelectItem>
-                  <SelectItem value="90">Últimos 90 dias</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-1">
+                {(["6m", "1a", "2a"] as const).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => { setPeriodoSelecionado(p); setCustomDates(null); setCustomLabel(null) }}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                      periodoSelecionado === p
+                        ? "bg-[#0F3460] text-white"
+                        : "bg-white text-[#64748B] border border-[#E2E8F0] hover:bg-[#F8FAFC]"
+                    }`}
+                  >
+                    {p === "6m" ? "6 meses" : p === "1a" ? "1 ano" : "2 anos"}
+                  </button>
+                ))}
+                <div className="relative" ref={customPickerRef}>
+                  <button
+                    onClick={() => setShowCustomPicker(!showCustomPicker)}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-lg flex items-center gap-1.5 transition-colors ${
+                      periodoSelecionado === "custom"
+                        ? "bg-[#0F3460] text-white"
+                        : "bg-white text-[#64748B] border border-[#E2E8F0] hover:bg-[#F8FAFC]"
+                    }`}
+                  >
+                    <Calendar className="h-4 w-4" />
+                    {periodoSelecionado === "custom" && customLabel ? customLabel : "Personalizado"}
+                  </button>
+                  {showCustomPicker && (
+                    <div className="absolute right-0 top-full mt-2 z-50">
+                      <DateRangePicker
+                        onApply={(from, to) => {
+                          const fromShort = from.slice(0, 5)
+                          const toShort = to.slice(0, 5)
+                          setCustomLabel(`${fromShort} - ${toShort}`)
+                          setCustomDates({ from, to })
+                          setPeriodoSelecionado("custom")
+                          setShowCustomPicker(false)
+                        }}
+                        onCancel={() => setShowCustomPicker(false)}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
             <div className="h-64">
+              {carregando ? (
+                <div className="h-full flex items-center justify-center text-sm text-[#64748B]">
+                  Carregando gráfico...
+                </div>
+              ) : dadosGrafico.length === 0 ? (
+                <div className="h-full flex items-center justify-center text-sm text-[#64748B]">
+                  Nenhum dado de pacientes no período selecionado.
+                </div>
+              ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={carregando ? chartData : (dados?.grafico || chartData)}>
+                <LineChart data={dadosGrafico}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
                   <XAxis 
                     dataKey="month" 
@@ -478,11 +699,10 @@ export default function DashboardPage() {
                     tickLine={false} 
                     tick={{ fill: '#64748B', fontSize: 12 }}
                   />
-                  <YAxis 
-                    axisLine={false} 
-                    tickLine={false} 
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
                     tick={{ fill: '#64748B', fontSize: 12 }}
-                    domain={[0, 30]}
                   />
                   <Tooltip 
                     contentStyle={{ 
@@ -522,6 +742,7 @@ export default function DashboardPage() {
                   />
                 </LineChart>
               </ResponsiveContainer>
+              )}
             </div>
           </div>
 
@@ -612,13 +833,7 @@ export default function DashboardPage() {
         </main>
       </div>
       
-      {/* Click outside to close notifications */}
-      {showNotifications && (
-        <div 
-          className="fixed inset-0 z-40" 
-          onClick={() => setShowNotifications(false)}
-        />
-      )}
+      
     </div>
   )
 }

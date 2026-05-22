@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { Users, Upload, Clock, Check, FileSpreadsheet, X } from "lucide-react"
+import { Upload, Clock, Check, FileSpreadsheet, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Image from "next/image"
 
@@ -17,9 +17,6 @@ export default function OnboardingPage() {
   const [currentStep, setCurrentStep] = useState(1)
   const [isAnimating, setIsAnimating] = useState(false)
   const [animationDirection, setAnimationDirection] = useState<"next" | "prev">("next")
-  
-  // Step 1 - Specialty
-  const [especialidade, setEspecialidade] = useState("")
   
   // Step 2 - Import option
   const [importOption, setImportOption] = useState<"later" | "now">("later")
@@ -76,13 +73,7 @@ export default function OnboardingPage() {
 
   const handleContinue = async () => {
     if (currentStep === 1) {
-      if (!especialidade || especialidade === "Selecione...") {
-        setErrors({ especialidade: "Selecione uma opção" })
-        return
-      }
       setErrors({})
-
-      // Save clinic data via API
       try {
         await fetch('/api/clinica', {
           method: 'PUT',
@@ -91,7 +82,6 @@ export default function OnboardingPage() {
             nome: signupData.clinicName,
             telefone: signupData.phone,
             cidade: signupData.city,
-            especialidade: especialidade,
             ticketMedio: 300
           })
         })
@@ -225,68 +215,32 @@ export default function OnboardingPage() {
             {currentStep === 1 && (
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-xl font-semibold text-foreground">Completar dados da clínica</h2>
+                  <h2 className="text-xl font-semibold text-foreground">Dados da sua clínica</h2>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    Já temos seus dados básicos. Só falta mais uma informação:
+                    Confirme as informações que serão usadas nas mensagens enviadas aos pacientes.
                   </p>
                 </div>
 
-                {/* Specialty Select */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">
-                    Qual a especialidade principal da clínica?
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={especialidade}
-                      onChange={(e) => {
-                        setEspecialidade(e.target.value)
-                        if (errors.especialidade) setErrors({})
-                      }}
-                      className={`w-full h-11 px-4 rounded-lg border bg-card text-foreground appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors ${
-                        errors.especialidade ? "border-destructive" : "border-border"
-                      }`}
-                    >
-                      <option value="">Selecione uma especialidade</option>
-                      <option value="clinica_geral">Clínica Geral</option>
-                      <option value="ortodontia">Ortodontia</option>
-                      <option value="implantodontia">Implantodontia</option>
-                      <option value="endodontia">Endodontia</option>
-                      <option value="periodontia">Periodontia</option>
-                      <option value="odontopediatria">Odontopediatria</option>
-                      <option value="cirurgia">Cirurgia Bucomaxilofacial</option>
-                      <option value="estetica">Odontologia Estética</option>
-                      <option value="multiplas">Múltiplas especialidades</option>
-                    </select>
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                      <svg className="h-4 w-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </div>
-                  </div>
-                  {errors.especialidade && (
-                    <p className="text-sm text-destructive">{errors.especialidade}</p>
-                  )}
-                </div>
 
                 {/* Summary Card */}
-                <div className="bg-background rounded-lg border border-border p-4">
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-                    <span className="flex items-center gap-1.5 text-foreground">
-                      <Check className="h-4 w-4 text-success" />
-                      {signupData.clinicName}
-                    </span>
-                    <span className="flex items-center gap-1.5 text-foreground">
-                      <Check className="h-4 w-4 text-success" />
-                      {signupData.city}
-                    </span>
-                    <span className="flex items-center gap-1.5 text-foreground">
-                      <Check className="h-4 w-4 text-success" />
-                      {signupData.phone}
-                    </span>
+                <div className="bg-background rounded-lg border border-border p-5 space-y-3">
+                  <div className="flex items-center gap-2 text-sm text-foreground">
+                    <Check className="h-4 w-4 text-success shrink-0" />
+                    <span className="font-medium">Nome:</span>
+                    <span>{signupData.clinicName}</span>
                   </div>
-                  <p className="mt-3 text-xs text-muted-foreground">
-                    Dados informados no cadastro · Editar nas configurações
+                  <div className="flex items-center gap-2 text-sm text-foreground">
+                    <Check className="h-4 w-4 text-success shrink-0" />
+                    <span className="font-medium">Cidade:</span>
+                    <span>{signupData.city}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-foreground">
+                    <Check className="h-4 w-4 text-success shrink-0" />
+                    <span className="font-medium">Telefone:</span>
+                    <span>{signupData.phone}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground pt-1 border-t border-border">
+                    Você pode editar esses dados a qualquer momento em Configurações.
                   </p>
                 </div>
 

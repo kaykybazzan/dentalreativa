@@ -13,7 +13,7 @@ export async function GET() {
       `SELECT 
          c.nome,
          c.telefone,
-         c.endereco,
+         c.cidade,
          c."ticketMedio" as ticket_medio,
          COUNT(p.id) as total_pacientes,
          EXISTS(
@@ -24,7 +24,7 @@ export async function GET() {
        INNER JOIN "Usuario" u ON u."clinicaId" = c.id
        LEFT JOIN "Paciente" p ON p."clinicaId" = c.id
        WHERE u.email = $1
-       GROUP BY c.id, c.nome, c.telefone, c.endereco, c."ticketMedio"`,
+       GROUP BY c.id, c.nome, c.telefone, c.cidade, c."ticketMedio"`,
       [session.user.email]
     );
 
@@ -33,7 +33,6 @@ export async function GET() {
       return Response.json({ completo: false, alertas: ["Clínica não encontrada"] });
     }
 
-    // Verificar o que está faltando
     const alertas = [];
 
     if (!clinica.nome || clinica.nome.trim() === "") {

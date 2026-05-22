@@ -29,7 +29,7 @@ export async function GET() {
 
     // Aplicar risco e filtrar apenas os que precisam de contato (medio, alto, critico)
     const fila = aplicarRisco(result.rows)
-      .filter((p) => p.nivelRisco !== "ok")
+      .filter((p) => p.nivelRisco !== "ok" && p.status !== "recuperado" && p.status !== "nao_contatar")
       .map((p) => ({
         ...p,
         // Fallback de valor: se paciente não tem ticket definido, usa o da clínica

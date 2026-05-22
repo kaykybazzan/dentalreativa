@@ -22,13 +22,16 @@ export async function POST(req: Request) {
 
     // Atualizar status do paciente para recuperado
     await pool.query(
-      `UPDATE "Paciente" SET status = 'recuperado' WHERE id = $1`,
-      [pacienteId]
+      `UPDATE "Paciente" SET
+        status = 'recuperado'::text::"StatusPaciente",
+        "atualizadoEm" = NOW()
+      WHERE id = $1 AND "clinicaId" = $2`,
+      [pacienteId, clinicaId]
     )
 
     // Atualizar o último ContactAttempt com resultado recuperado e valor
     await pool.query(
-      `UPDATE "ContactAttempt" 
+    `UPDATE "ContactAttempt" 
        SET tipo = 'recuperado', "valorRecuperado" = $1
        WHERE "pacienteId" = $2 AND "clinicaId" = $3
        AND id = (
