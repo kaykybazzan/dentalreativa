@@ -52,6 +52,32 @@ function normalizarData(valor: any): string | null {
     return `${ano}-${mes.padStart(2, "0")}-${dia.padStart(2, "0")}`;
   }
 
+  // Formato DD/MM/AA (ano com 2 dígitos)
+  if (/^\d{1,2}\/\d{1,2}\/\d{2}$/.test(str)) {
+    const [dia, mes, ano] = str.split("/");
+    const anoCompleto = parseInt(ano) > 50 ? `19${ano}` : `20${ano}`;
+    return `${anoCompleto}-${mes.padStart(2, "0")}-${dia.padStart(2, "0")}`;
+  }
+
+  // Formato mês/AA ou mês/AAAA por extenso (ex: fev/24, abril/23, jan/2024)
+  const mesesPtBr: Record<string, string> = {
+    jan: "01", fev: "02", mar: "03", abr: "04", mai: "05", jun: "06",
+    jul: "07", ago: "08", set: "09", out: "10", nov: "11", dez: "12",
+    janeiro: "01", fevereiro: "02", março: "03", abril: "04", maio: "05",
+    junho: "06", julho: "07", agosto: "08", setembro: "09", outubro: "10",
+    novembro: "11", dezembro: "12"
+  };
+  const matchMesAno = str.toLowerCase().match(/^([a-záãâàêéí]+)[\/\-\s](\d{2,4})$/);
+  if (matchMesAno) {
+    const mes = mesesPtBr[matchMesAno[1]];
+    if (mes) {
+      const ano = matchMesAno[2].length === 2
+        ? (parseInt(matchMesAno[2]) > 50 ? `19${matchMesAno[2]}` : `20${matchMesAno[2]}`)
+        : matchMesAno[2];
+      return `${ano}-${mes}-01`;
+    }
+  }
+
   // Tentar parse genérico como último recurso
   try {
     const data = new Date(str);
@@ -120,9 +146,11 @@ export async function parsearArquivoPacientes(
       // Buscar nome — aceitar variações: nome, name, paciente, nome_paciente
       const nome =
         linhaNormalizada["nome"] ||
+        linhaNormalizada["nome_completo"] ||
         linhaNormalizada["name"] ||
         linhaNormalizada["paciente"] ||
         linhaNormalizada["nome_paciente"] ||
+        linhaNormalizada["nome_do_paciente"] ||
         "";
 
       // Buscar telefone — aceitar variações: telefone, fone, celular, whatsapp, tel

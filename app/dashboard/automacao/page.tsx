@@ -157,9 +157,10 @@ export default function AutomacaoPage() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      if (localStorage.getItem("onboarding_done") !== "true") {
-        router.push("/onboarding")
-        return
+      const clinicaId = (session?.user as any)?.clinicaId
+      const key = `onboarding_done_${clinicaId}`
+      if (clinicaId && localStorage.getItem(key) !== "true") {
+        localStorage.setItem(key, "true")
       }
       setActiveNav("automation")
 
@@ -509,8 +510,8 @@ export default function AutomacaoPage() {
               >
                 {/* Cabeçalho do dropdown */}
                 <div className="px-4 py-3 border-b border-[#E2E8F0]">
-                  <p className="text-xs font-semibold text-[#1E293B] truncate">{userName ?? "Usuário"}</p>
-                  <p className="text-xs text-[#64748B] truncate">{clinicName ?? "Clínica"}</p>
+                  <p className="text-sm font-semibold text-[#1E293B] truncate">{userName ?? "Usuário"}</p>
+                  <p className="text-sm text-[#64748B] truncate">{clinicName ?? "Clínica"}</p>
                 </div>
 
                 {/* Opção: Meu perfil */}
@@ -589,7 +590,7 @@ export default function AutomacaoPage() {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-[#64748B] mb-1">
+                <label className="block text-sm font-medium text-[#64748B] mb-1">
                   Nome completo
                 </label>
                 <input
@@ -599,7 +600,7 @@ export default function AutomacaoPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-[#64748B] mb-1">
+                <label className="block text-sm font-medium text-[#64748B] mb-1">
                   Clínica
                 </label>
                 <input
@@ -724,7 +725,7 @@ export default function AutomacaoPage() {
             <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden shadow-sm">
 
               {/* Header da tabela */}
-              <div className="bg-[#F8FAFC] border-b border-[#E2E8F0] px-5 py-3 grid gap-3 text-xs uppercase text-[#64748B] font-medium tracking-wider" style={{gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr 2fr'}}>
+              <div className="bg-[#F8FAFC] border-b border-[#E2E8F0] px-5 py-3 grid gap-3 text-xs uppercase text-[#64748B] font-medium tracking-wider" style={{gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr 1fr'}}>
                 <div>Nome</div>
                 <div>Última consulta</div>
                 <div>Dias sem voltar</div>
@@ -737,7 +738,7 @@ export default function AutomacaoPage() {
               {/* Linhas */}
               {filteredAndSortedPatients.map((patient) => (
                 <div key={patient.id}>
-                  <div className="border-b border-[#F1F5F9] px-5 py-4 grid gap-3 items-center hover:bg-[#F8FAFC] transition-colors" style={{gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr 2fr'}}>
+                  <div className={`border-b border-[#F1F5F9] px-6 py-5 grid gap-3 hover:bg-[#F8FAFC] transition-colors ${aguardandoConfirmacao[patient.id] ? 'items-start' : 'items-center'}`} style={{gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr 1fr'}}>  
 
                     {/* Nome */}
                     <div className="flex items-center gap-3">
@@ -747,9 +748,9 @@ export default function AutomacaoPage() {
                       <div>
                         <p className="text-sm font-bold text-[#1E293B]">{patient.name ?? "-"} <span className="text-xs font-normal text-[#64748B]">({patient.attemptLabel ?? "1ª"} tentativa)</span></p>
                         {patient.attempt === "3" && (
-                          <p className="text-xs text-[#EF4444] font-medium">⚠️ Última chance</p>
+                          <p className="text-sm text-[#EF4444] font-medium">⚠️ Última chance</p>
                         )}
-                        <p className="text-xs text-[#64748B]">{patient.phone ?? "-"}</p>
+                        <p className="text-sm text-[#64748B]">{patient.phone ?? "-"}</p>
                       </div>
                     </div>
 
@@ -774,12 +775,12 @@ export default function AutomacaoPage() {
 
                     {/* Procedimento */}
                     <div>
-                      <p className="text-xs text-[#64748B]">{patient.procedure ?? "-"}</p>
+                      <p className="text-sm text-[#64748B]">{patient.procedure ?? "-"}</p>
                     </div>
 
                     {/* Valor estimado */}
                     <div>
-                      <p className="text-xs font-medium text-[#1E293B]">
+                      <p className="text-sm font-medium text-[#1E293B]">
                         {patient.estimatedValue?.toLocaleString?.('pt-BR', { style: 'currency', currency: 'BRL' }) ?? "R$ 0,00"}
                       </p>
                     </div>
@@ -787,22 +788,36 @@ export default function AutomacaoPage() {
                     {/* Ação */}
                     <div className="flex items-center gap-2">
                       {aguardandoConfirmacao[patient.id] ? (
-                        <span className="flex items-center gap-1.5 text-xs text-[#F59E0B] font-medium">
-                          <span className="w-2 h-2 rounded-full bg-[#F59E0B] animate-pulse" />
-                          Aguardando...
-                        </span>
-                      ) : enviados[patient.id] ? (
-                        <div className="flex flex-col gap-1.5 relative">
-                          <div className="flex items-center gap-1.5 text-[#10B981]">
-                            <CheckCircle className="h-3.5 w-3.5 shrink-0" />
-                            <span className="text-xs font-medium">Enviado</span>
+                        <div className="flex flex-col gap-1.5">
+                          <p className="text-sm text-[#92400E] font-medium">Você enviou?</p>
+                          <div className="flex gap-1.5">
+                            <button
+                              onClick={() => handleConfirmarEnvio(patient)}
+                              className="bg-[#10B981] text-white text-sm font-medium px-2.5 py-1.5 rounded-lg hover:bg-[#059669] transition-colors"
+                            >
+                              ✓ Sim
+                            </button>
+                            <button
+                              onClick={() => handleCancelarEnvio(patient.id)}
+                              className="text-sm text-[#64748B] px-2.5 py-1.5 rounded-lg border border-[#E2E8F0] hover:bg-[#F8FAFC] transition-colors"
+                            >
+                              Não
+                            </button>
                           </div>
-                          <button
-                            onClick={() => setMenuAcoes((prev) => ({ ...prev, [patient.id]: !prev[patient.id] }))}
-                            className="text-xs text-[#64748B] hover:text-[#1E293B] underline underline-offset-2 transition-colors text-left"
-                          >
-                            O que aconteceu? ▾
-                          </button>
+                        </div>
+                      ) : enviados[patient.id] ? (
+                        <div className="flex items-center gap-2 relative">
+                        <div className="flex items-center gap-1 text-[#10B981]">
+                          <CheckCircle className="h-3.5 w-3.5 shrink-0" />
+                          <span className="text-sm font-medium">Enviado</span>
+                        </div>
+                        <span className="text-[#CBD5E1]">·</span>
+                        <button
+                          onClick={() => setMenuAcoes((prev) => ({ ...prev, [patient.id]: !prev[patient.id] }))}
+                          className="text-sm text-[#64748B] hover:text-[#1E293B] underline underline-offset-2 transition-colors"
+                        >
+                          O que aconteceu? ▾
+                        </button>
                           {menuAcoes[patient.id] && (
                             <div className="absolute top-full left-0 mt-1 w-52 bg-white border border-[#E2E8F0] rounded-xl shadow-lg z-50 overflow-hidden">
                               <button onClick={() => handlePacienteVoltou(patient)}
@@ -828,7 +843,7 @@ export default function AutomacaoPage() {
                         <Button
                           onClick={() => handleEnviarWhatsApp(patient)}
                           disabled={enviando[patient.id] || enviados[patient.id]}
-                          className="bg-[#25D366] hover:bg-[#1fad52] text-white text-xs h-8 px-3 flex items-center gap-1.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="bg-[#25D366] hover:bg-[#1fad52] text-white text-sm h-8 px-3 flex items-center gap-1.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <svg viewBox="0 0 24 24" width="14" height="14" fill="white">
                             <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
@@ -842,32 +857,7 @@ export default function AutomacaoPage() {
                   </div>
 
                   {/* Confirmação de envio */}
-                  {aguardandoConfirmacao[patient.id] && (
-                    <div className="border-b border-[#FDE68A] bg-[#FFFBEB] px-5 py-3 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-[#92400E]">
-                          Você enviou a mensagem para {patient.name}?
-                        </span>
-                        <span className="text-xs text-[#A16207]">
-                          (confirme para registrar a tentativa no sistema)
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleConfirmarEnvio(patient)}
-                          className="bg-[#10B981] text-white text-sm font-medium px-4 py-1.5 rounded-lg hover:bg-[#059669] transition-colors"
-                        >
-                          ✓ Sim, enviei
-                        </button>
-                        <button
-                          onClick={() => handleCancelarEnvio(patient.id)}
-                          className="text-sm text-[#64748B] hover:text-[#1E293B] px-3 py-1.5 rounded-lg border border-[#E2E8F0] hover:bg-[#F8FAFC] transition-colors"
-                        >
-                          Não foi desta vez
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                  
 
                 </div>
               ))}
@@ -890,7 +880,7 @@ export default function AutomacaoPage() {
               )}
 
               {/* Rodapé */}
-              <div className="bg-white px-5 py-4 border-t border-[#E2E8F0] flex items-center justify-between">
+              <div className="bg-white px-6 py-5 border-t border-[#E2E8F0] flex items-center justify-between">
                 <p className="text-xs text-[#64748B]">
                   Mostrando {filteredAndSortedPatients.length} de {fila.length} pacientes
                 </p>
