@@ -163,10 +163,7 @@ export function SignupModal({ isOpen, onClose, onSuccess }: SignupModalProps) {
       setIsLoading(false)
       
       if (result?.ok) {
-        // Clear any previous onboarding state to ensure fresh start
-        localStorage.removeItem("onboarding_done")
-        localStorage.removeItem("onboarding_step")
-        window.location.href = '/onboarding'
+        onSuccess()
       } else {
         setErrors({ general: 'Erro ao fazer login automático' })
       }

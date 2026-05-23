@@ -5,7 +5,7 @@ const pool = new Pool({
   port: 5432,
   database: 'dentalreativa',
   user: 'postgres',
-  password: 'Bazzan01'
+  password: 'bazzan01'
 })
 
 async function criarTabelas() {

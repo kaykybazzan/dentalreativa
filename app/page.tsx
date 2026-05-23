@@ -30,7 +30,7 @@ export default function LoginPage() {
     if (showSuccessToast) {
       const timer = setTimeout(() => {
         setShowSuccessToast(false)
-        router.push("/onboarding")
+        router.push("/dashboard")
       }, 2000)
       return () => clearTimeout(timer)
     }

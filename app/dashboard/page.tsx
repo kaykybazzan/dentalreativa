@@ -163,8 +163,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
   if (typeof window !== "undefined") {
-    if (localStorage.getItem("onboarding_done") !== "true") {
-      localStorage.setItem("onboarding_done", "true")
+    const clinicaId = (session?.user as any)?.clinicaId
+    const key = `onboarding_done_${clinicaId}`
+    if (clinicaId && localStorage.getItem(key) !== "true") {
+      localStorage.setItem(key, "true")
       setShowWelcomeBanner(true)
     }
     setActiveNav("dashboard")
@@ -561,29 +563,15 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-[#166534]">Bem-vindo ao DentalReativa!</p>
-                  <p className="text-xs text-[#166534]/80">Para começar, complete os dados da sua clínica e importe seus pacientes.</p>
+                  <p className="text-xs text-[#166534]/80">Siga as instruções abaixo para começar.</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => router.push("/dashboard/configuracoes")}
-                  className="text-xs font-medium text-white bg-[#0F3460] px-3 py-1.5 rounded-lg hover:bg-[#0A2540] transition-colors"
-                >
-                  Configurar clínica
-                </button>
-                <button
-                  onClick={() => router.push("/dashboard/pacientes")}
-                  className="text-xs font-medium text-[#0F3460] border border-[#0F3460] px-3 py-1.5 rounded-lg hover:bg-[#EFF6FF] transition-colors"
-                >
-                  Importar pacientes
-                </button>
-                <button
-                  onClick={() => setShowWelcomeBanner(false)}
-                  className="text-[#64748B] hover:text-[#1E293B] ml-1"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
+              <button
+                onClick={() => setShowWelcomeBanner(false)}
+                className="text-[#64748B] hover:text-[#1E293B]"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
           )}
 
