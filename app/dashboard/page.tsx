@@ -23,6 +23,7 @@ import {
   LogOut,
   Bell,
   CheckCircle,
+  Check,
   X,
   ChevronRight,
 } from "lucide-react"
@@ -151,6 +152,7 @@ export default function DashboardPage() {
   const [showNotifications, setShowNotifications] = useState(false)
   const [notificacoes, setNotificacoes] = useState<any[]>([])
   const [badgeCount, setBadgeCount] = useState(0)
+  const [showWelcomeBanner, setShowWelcomeBanner] = useState(false)
 
   const userName = session?.user?.name || "Usuário"
   const userEmail = session?.user?.email || ""
@@ -162,8 +164,8 @@ export default function DashboardPage() {
   useEffect(() => {
   if (typeof window !== "undefined") {
     if (localStorage.getItem("onboarding_done") !== "true") {
-      router.push("/onboarding")
-      return
+      localStorage.setItem("onboarding_done", "true")
+      setShowWelcomeBanner(true)
     }
     setActiveNav("dashboard")
 
@@ -549,6 +551,42 @@ export default function DashboardPage() {
 
         {/* Main Content */}
         <main className="flex-1 overflow-auto p-6">
+          
+          
+          {showWelcomeBanner && (
+            <div className="bg-[#F0FDF4] border border-[#BBF7D0] rounded-xl p-4 mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#10B981]/10">
+                  <Check className="h-5 w-5 text-[#10B981]" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-[#166534]">Bem-vindo ao DentalReativa!</p>
+                  <p className="text-xs text-[#166534]/80">Para começar, complete os dados da sua clínica e importe seus pacientes.</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => router.push("/dashboard/configuracoes")}
+                  className="text-xs font-medium text-white bg-[#0F3460] px-3 py-1.5 rounded-lg hover:bg-[#0A2540] transition-colors"
+                >
+                  Configurar clínica
+                </button>
+                <button
+                  onClick={() => router.push("/dashboard/pacientes")}
+                  className="text-xs font-medium text-[#0F3460] border border-[#0F3460] px-3 py-1.5 rounded-lg hover:bg-[#EFF6FF] transition-colors"
+                >
+                  Importar pacientes
+                </button>
+                <button
+                  onClick={() => setShowWelcomeBanner(false)}
+                  className="text-[#64748B] hover:text-[#1E293B] ml-1"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
           <AlertaConfiguracao />
           
           <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm p-6">
