@@ -76,9 +76,9 @@ export async function GET(req: Request) {
 
     const totalPacientes = todos.length;
     const totalAtivos = todos.filter((p) => p.status === "ativo").length;
-    const totalEmContato = todos.filter((p) => p.status === "em_contato").length;
+    const totalEmContato = todos.filter((p) => p.status === "contatado").length;
     const totalRecuperados = todos.filter((p) => p.status === "recuperado").length;
-    const totalSemResposta = todos.filter((p) => p.status === "sem_resposta").length;
+    const totalSemResposta = todos.filter((p) => p.status === "aguardando_resposta").length;
     const totalIncompletos = todos.filter((p) => p.dadosIncompletos).length;
 
     // ── RECEITA RECUPERADA ───────────────────────────────────
@@ -137,7 +137,7 @@ export async function GET(req: Request) {
       `SELECT
          TO_CHAR(DATE_TRUNC('month', ca."criadoEm"), 'Mon/YY') as mes,
          DATE_TRUNC('month', ca."criadoEm") as mes_ordem,
-         COUNT(*) FILTER (WHERE p.status = 'recuperado') as recuperados,
+         COUNT(*) FILTER (WHERE p.status::text = 'recuperado') as recuperados,
          COUNT(*) as total_envios
        FROM "ContactAttempt" ca
        INNER JOIN "Paciente" p ON p.id = ca."pacienteId"
@@ -180,7 +180,7 @@ export async function GET(req: Request) {
          COUNT(ca.id) as tentativas_necessarias
        FROM "Paciente" p
        INNER JOIN "ContactAttempt" ca ON ca."pacienteId" = p.id
-       WHERE p."clinicaId" = $1 AND p.status = 'recuperado'
+       WHERE p."clinicaId" = $1 AND p.status::text = 'recuperado'
        GROUP BY p.id, p.nome, p.telefone, p."ultimaConsulta"
        ORDER BY MAX(ca."criadoEm") DESC`,
       [clinicaId]
@@ -191,7 +191,7 @@ export async function GET(req: Request) {
       `SELECT 
          ca."tentativaNumero",
          COUNT(*) as total_envios,
-         COUNT(*) FILTER (WHERE p.status = 'recuperado') as total_recuperados
+         COUNT(*) FILTER (WHERE p.status::text = 'recuperado') as total_recuperados
        FROM "ContactAttempt" ca
        INNER JOIN "Paciente" p ON p.id = ca."pacienteId"
        WHERE ca."clinicaId" = $1
@@ -219,6 +219,30 @@ export async function GET(req: Request) {
       };
     });
 
+    // TEMPO MÉDIO ATÉ RECUPERAÇÃO 
+    const tempoMedioResult = await pool.query(
+      `SELECT
+         AVG(
+           DATE_PART('day', p."atualizadoEm" - primeiro_contato."criadoEm")
+         )::int AS dias_medio
+       FROM "Paciente" p
+       INNER JOIN (
+         SELECT "pacienteId", MIN("criadoEm") as "criadoEm"
+         FROM "ContactAttempt"
+         WHERE "clinicaId" = $1
+         GROUP BY "pacienteId"
+       ) primeiro_contato ON primeiro_contato."pacienteId" = p.id
+       WHERE p."clinicaId" = $1
+         AND p.status::text = 'recuperado'`,
+      [clinicaId]
+    )
+    const tempoMedioRetorno = parseInt(tempoMedioResult.rows[0]?.dias_medio) || 0
+
+    // Funil histórico: total de pacientes que já passaram pelo processo
+    const totalPassaramPeloRisco = todos.filter((p) =>
+      p.status !== "ativo"
+    ).length + comRisco.filter((p) => p.status === "ativo").length
+
     return Response.json({
       metricas: {
         totalPacientes,
@@ -234,7 +258,7 @@ export async function GET(req: Request) {
         totalContatados: totalContatadosNum,
       },
       funil: {
-        emRisco: comRisco.length,
+        emRisco: totalPassaramPeloRisco,
         contatados: totalContatadosNum,
         recuperados: totalRecuperados,
         enviosPorTentativa: enviosPorTentativa.rows,

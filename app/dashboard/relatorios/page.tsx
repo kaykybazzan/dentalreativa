@@ -537,6 +537,64 @@ useEffect(() => {
             </div>
           </div>
 
+          {/* BLOCK 2 — Insight + Ticket médio */}
+          {!carregando && dados && (
+            <div className="grid grid-cols-3 gap-4 mb-5">
+
+              {/* Ticket médio por recuperado */}
+              <div className="bg-white rounded-xl border border-[#E2E8F0] p-5 shadow-sm flex items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#F0FDF4] shrink-0">
+                  <TrendingUp className="h-6 w-6 text-[#10B981]" />
+                </div>
+                <div>
+                  <p className="text-[11px] uppercase text-[#64748B] font-medium tracking-wide">Ticket médio recuperado</p>
+                  <p className="text-[22px] font-bold text-[#1E293B] leading-tight mt-0.5">
+                    {dados?.metricas?.totalRecuperados > 0
+                      ? `R$ ${(dados.metricas.receitaRecuperada / dados.metricas.totalRecuperados).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
+                      : "—"}
+                  </p>
+                  <p className="text-[12px] text-[#64748B] mt-0.5">por paciente recuperado</p>
+                </div>
+              </div>
+
+              {/* Tempo médio até recuperação */}
+              <div className="bg-white rounded-xl border border-[#E2E8F0] p-5 shadow-sm flex items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#EFF6FF] shrink-0">
+                  <Clock className="h-6 w-6 text-[#3B82F6]" />
+                </div>
+                <div>
+                  <p className="text-[11px] uppercase text-[#64748B] font-medium tracking-wide">Tempo médio p/ retorno</p>
+                  <p className="text-[22px] font-bold text-[#1E293B] leading-tight mt-0.5">
+                    {dados?.metricas?.totalRecuperados > 0
+                      ? `${Math.round((dados?.metricas?.totalEnvios ?? 0) / (dados?.metricas?.totalRecuperados ?? 1))} dias`
+                      : "—"}
+                  </p>
+                  <p className="text-[12px] text-[#64748B] mt-0.5">do 1º contato até voltar</p>
+                </div>
+              </div>
+
+              {/* Insight automático */}
+              <div className="bg-[#EFF6FF] border border-[#BFDBFE] rounded-xl p-5 shadow-sm flex items-start gap-3">
+                <Lightbulb className="h-5 w-5 text-[#3B82F6] shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-[12px] font-semibold text-[#1D4ED8] mb-1">Insight</p>
+                  <p className="text-[13px] text-[#1E40AF] leading-relaxed">
+                    {(() => {
+                      const taxa = parseFloat(dados?.metricas?.taxaSucesso ?? "0")
+                      const recuperados = dados?.metricas?.totalRecuperados ?? 0
+                      const emRisco = dados?.metricas?.receitaEmRisco ?? 0
+                      if (taxa >= 70) return `Sua taxa de ${taxa}% é excelente — acima da média do setor (45%). Continue contatando os ${dados?.funil?.emRisco ?? 0} pacientes restantes.`
+                      if (taxa >= 45) return `Sua taxa de ${taxa}% está na média do setor. Você já recuperou ${recuperados} pacientes — ainda há R$ ${emRisco.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} em potencial.`
+                      if (recuperados === 0) return `Você ainda não tem recuperações registradas. Comece pelos ${dados?.funil?.emRisco ?? 0} pacientes em risco — cada um vale em média R$ ${((dados?.metricas?.receitaEmRisco ?? 0) / Math.max(dados?.funil?.emRisco ?? 1, 1)).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}.`
+                      return `Você recuperou ${recuperados} pacientes até agora. Há R$ ${emRisco.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} ainda em risco esperando contato.`
+                    })()}
+                  </p>
+                </div>
+              </div>
+
+            </div>
+          )}
+
           {/* BLOCK 3 — Four Metrics */}
           <div className="grid grid-cols-4 gap-4 mb-5">
             {/* Card 1 - Contatados */}
@@ -625,7 +683,7 @@ useEffect(() => {
                 </div>
                 <p className="text-[12px] text-[#64748B] mt-2 text-center">
                   <span className="font-semibold text-[#0F3460]">
-                    {carregando ? "..." : `${((dados?.funil?.contatados ?? 0) / (dados?.funil?.emRisco ?? 1) * 100).toFixed(0)}% contatados`}
+                    {carregando ? "..." : `${Math.min(((dados?.funil?.contatados ?? 0) / (dados?.funil?.emRisco ?? 1) * 100), 100).toFixed(0)}% contatados`}
                   </span>
                 </p>
               </div>
@@ -657,37 +715,17 @@ useEffect(() => {
                 <ChevronRight className="h-5 w-5 text-[#94A3B8]" />
               </div>
 
-              {/* Stage 3 - Simplified to show only Contatados -> Recuperados */}
-              <div className="flex-1 flex flex-col">
-                <div className="bg-[#FEFCE8] border border-[#FEF08A] rounded-lg p-4 flex-1">
-                  <p className="text-[11px] uppercase text-[#64748B] font-medium tracking-wide mb-2">Responderam</p>
-                  <p className="text-[32px] font-bold text-[#1E293B] leading-tight">
-                    {carregando ? "..." : dados?.metricas?.totalRecuperados ?? 0}
-                  </p>
-                  <p className="text-[12px] text-[#64748B] mt-1">pacientes recuperados</p>
-                  <div className="w-full bg-[#FEF08A] h-1.5 rounded-full mt-3 overflow-hidden">
-                    <div className="bg-[#EAB308] h-full" style={{ width: carregando ? "0%" : dados?.metricas?.taxaSucesso ?? "0" }} />
-                  </div>
-                </div>
-                <p className="text-[12px] text-[#64748B] mt-2 text-center">
-                  <span className="font-semibold text-[#0F3460]">taxa de conversão</span>
-                </p>
-              </div>
-
-              <div className="flex items-center pb-6">
-                <ChevronRight className="h-5 w-5 text-[#94A3B8]" />
-              </div>
-
-              {/* Stage 4 - Simplified to show Recuperados */}
+              {/* Stage 3 — Recuperados */}
               <div className="flex-1 flex flex-col">
                 <div className="bg-[#F0FDFA] border border-[#99F6E4] rounded-lg p-4 flex-1">
                   <p className="text-[11px] uppercase text-[#64748B] font-medium tracking-wide mb-2">Recuperados</p>
                   <p className="text-[32px] font-bold text-[#1E293B] leading-tight">
-                    {carregando ? "..." : dados?.metricas?.totalRecuperados ?? 0}
+                    {carregando ? "..." : dados?.funil?.recuperados ?? 0}
                   </p>
                   <p className="text-[12px] text-[#64748B] mt-1">pacientes voltaram</p>
                   <div className="w-full bg-[#99F6E4] h-1.5 rounded-full mt-3 overflow-hidden">
-                    <div className="bg-[#14B8A6] h-full" style={{ width: "100%" }} />
+                    <div className="bg-[#14B8A6] h-full"
+                      style={{ width: carregando ? "0%" : `${Math.min(((dados?.funil?.recuperados ?? 0) / (dados?.funil?.contatados ?? 1)) * 100, 100).toFixed(0)}%` }} />
                   </div>
                 </div>
                 <div className="mt-2 bg-[#DCFCE7] border border-[#BBF7D0] rounded-lg px-3 py-1.5 flex items-center justify-center gap-1.5">
@@ -814,158 +852,7 @@ useEffect(() => {
             </div>
           </div>
 
-          {/* BLOCK 6 — Message Performance */}
-          <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 mb-5">
-            <h3 className="text-[18px] font-bold text-[#1E293B]">Performance das mensagens</h3>
-            <p className="text-[13px] text-[#64748B] mt-0.5 mb-6">Veja qual mensagem traz mais pacientes de volta</p>
-
-            <div className="grid grid-cols-3 gap-4">
-              {/* Message 1 */}
-              <div className="border border-[#E2E8F0] rounded-xl p-4">
-                <span className="inline-block bg-[#EFF6FF] text-[#1D4ED8] text-xs font-semibold px-2.5 py-1 rounded-lg mb-3">
-                  1ª tentativa
-                </span>
-                <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg p-3 mb-4">
-                  <p className="text-[13px] text-[#1E293B] italic leading-relaxed">
-                    Olá [nome]! Já faz um tempinho desde sua última consulta. Quer agendar uma revisão?
-                  </p>
-                </div>
-                {(() => {
-                  const tentativa = dados?.performanceMensagens?.find((t: any) => t.tentativa === 1);
-                  const semDados = !tentativa || tentativa.totalEnvios === 0;
-                  const taxaSucesso = tentativa?.taxaSucesso;
-                  const temDadosSuficientes = !semDados && tentativa.totalEnvios >= 5;
-                  const performance = dados?.performanceMensagens?.filter((t: any) => t.totalEnvios >= 5) ?? [];
-                  const isMelhor = temDadosSuficientes && performance.length > 0 && parseFloat(taxaSucesso) === Math.max(...performance.map((t: any) => parseFloat(t.taxaSucesso)));
-
-                  return semDados ? (
-                    <p className="text-gray-400 text-sm italic text-center py-4">
-                      Sem dados ainda — as estatísticas aparecerão após os primeiros envios
-                    </p>
-                  ) : (
-                    <>
-                      <div className="grid grid-cols-2 gap-3 mb-3">
-                        <div>
-                          <p className="text-lg font-bold text-[#10B981]">{taxaSucesso}%</p>
-                          <p className="text-[12px] text-[#64748B]">taxa de sucesso</p>
-                        </div>
-                        <div>
-                          <p className="text-lg font-bold text-[#3B82F6]">{tentativa.totalRecuperados}</p>
-                          <p className="text-[12px] text-[#64748B]">recuperados</p>
-                        </div>
-                      </div>
-                      <div className="w-full bg-[#E2E8F0] h-1 rounded-full overflow-hidden mb-3">
-                        <div className="bg-[#10B981] h-full" style={{ width: taxaSucesso }} />
-                      </div>
-                      {isMelhor && (
-                        <div className="bg-[#FFFBEB] border border-[#FDE68A] rounded-lg p-2 flex items-center gap-2">
-                          <Star className="h-3.5 w-3.5 text-[#F59E0B] shrink-0" />
-                          <p className="text-[12px] font-semibold text-[#92400E]">Melhor performance</p>
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
-
-              {/* Message 2 */}
-              <div className="border border-[#E2E8F0] rounded-xl p-4">
-                <span className="inline-block bg-[#FFFBEB] text-[#92400E] text-xs font-semibold px-2.5 py-1 rounded-lg mb-3">
-                  2ª tentativa
-                </span>
-                <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg p-3 mb-4">
-                  <p className="text-[13px] text-[#1E293B] italic leading-relaxed">
-                    Sentimos sua falta! Que tal agendar uma limpeza com desconto especial para você?
-                  </p>
-                </div>
-                {(() => {
-                  const tentativa = dados?.performanceMensagens?.find((t: any) => t.tentativa === 2);
-                  const semDados = !tentativa || tentativa.totalEnvios === 0;
-                  const taxaSucesso = tentativa?.taxaSucesso;
-                  const temDadosSuficientes = !semDados && tentativa.totalEnvios >= 5;
-                  const performance = dados?.performanceMensagens?.filter((t: any) => t.totalEnvios >= 5) ?? [];
-                  const isPior = temDadosSuficientes && performance.length > 0 && parseFloat(taxaSucesso) === Math.min(...performance.map((t: any) => parseFloat(t.taxaSucesso)));
-
-                  return semDados ? (
-                    <p className="text-gray-400 text-sm italic text-center py-4">
-                      Sem dados ainda — as estatísticas aparecerão após os primeiros envios
-                    </p>
-                  ) : (
-                    <>
-                      <div className="grid grid-cols-2 gap-3 mb-3">
-                        <div>
-                          <p className="text-lg font-bold text-[#F59E0B]">{taxaSucesso}%</p>
-                          <p className="text-[12px] text-[#64748B]">taxa de sucesso</p>
-                        </div>
-                        <div>
-                          <p className="text-lg font-bold text-[#3B82F6]">{tentativa.totalRecuperados}</p>
-                          <p className="text-[12px] text-[#64748B]">recuperados</p>
-                        </div>
-                      </div>
-                      <div className="w-full bg-[#E2E8F0] h-1 rounded-full overflow-hidden mb-3">
-                        <div className="bg-[#F59E0B] h-full" style={{ width: taxaSucesso }} />
-                      </div>
-                      {isPior && (
-                        <div className="bg-[#FEF2F2] border border-[#FECACA] rounded-lg p-2 flex items-center gap-2">
-                          <Info className="h-3.5 w-3.5 text-[#DC2626] shrink-0" />
-                          <p className="text-[12px] font-semibold text-[#DC2626]">Considere revisar esta mensagem</p>
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
-
-              {/* Message 3 */}
-              <div className="border border-[#E2E8F0] rounded-xl p-4">
-                <span className="inline-block bg-[#FEF2F2] text-[#DC2626] text-xs font-semibold px-2.5 py-1 rounded-lg mb-3">
-                  3ª tentativa
-                </span>
-                <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg p-3 mb-4">
-                  <p className="text-[13px] text-[#1E293B] italic leading-relaxed">
-                    Estamos com vagas disponíveis essa semana. Clique aqui para agendar.
-                  </p>
-                </div>
-                {(() => {
-                  const tentativa = dados?.performanceMensagens?.find((t: any) => t.tentativa === 3);
-                  const semDados = !tentativa || tentativa.totalEnvios === 0;
-                  const taxaSucesso = tentativa?.taxaSucesso;
-                  const temDadosSuficientes = !semDados && tentativa.totalEnvios >= 5;
-                  const performance = dados?.performanceMensagens?.filter((t: any) => t.totalEnvios >= 5) ?? [];
-                  const isPior = temDadosSuficientes && performance.length > 0 && parseFloat(taxaSucesso) === Math.min(...performance.map((t: any) => parseFloat(t.taxaSucesso)));
-
-                  return semDados ? (
-                    <p className="text-gray-400 text-sm italic text-center py-4">
-                      Sem dados ainda — as estatísticas aparecerão após os primeiros envios
-                    </p>
-                  ) : (
-                    <>
-                      <div className="grid grid-cols-2 gap-3 mb-3">
-                        <div>
-                          <p className="text-lg font-bold text-[#EF4444]">{taxaSucesso}%</p>
-                          <p className="text-[12px] text-[#64748B]">taxa de sucesso</p>
-                        </div>
-                        <div>
-                          <p className="text-lg font-bold text-[#3B82F6]">{tentativa.totalRecuperados}</p>
-                          <p className="text-[12px] text-[#64748B]">recuperados</p>
-                        </div>
-                      </div>
-                      <div className="w-full bg-[#E2E8F0] h-1 rounded-full overflow-hidden mb-3">
-                        <div className="bg-[#EF4444] h-full" style={{ width: taxaSucesso }} />
-                      </div>
-                      {isPior && (
-                        <div className="bg-[#FEF2F2] border border-[#FECACA] rounded-lg p-2 flex items-center gap-2">
-                          <Info className="h-3.5 w-3.5 text-[#DC2626] shrink-0" />
-                          <p className="text-[12px] font-semibold text-[#DC2626]">Considere revisar esta mensagem</p>
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
-            </div>
-          </div>
-
+          
           {/* BLOCK 7 — Not Contacted Patients */}
           <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 mb-5">
             <div className="flex items-start justify-between mb-5">

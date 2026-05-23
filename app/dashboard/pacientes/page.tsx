@@ -76,12 +76,13 @@ const samplePatients: Patient[] = [
 ]
 
 const statusConfig: Record<string, { label: string; bgColor: string; textColor: string }> = {
-  em_risco: { label: "Em risco", bgColor: "bg-[#FEF2F2]", textColor: "text-[#DC2626]" },
-  ativo: { label: "Ativo", bgColor: "bg-[#F0FDF4]", textColor: "text-[#15803D]" },
-  em_contato: { label: "Contatado", bgColor: "bg-[#EFF6FF]", textColor: "text-[#1D4ED8]" },
-  recuperado: { label: "Recuperado", bgColor: "bg-[#F0FDF4]", textColor: "text-[#15803D]" },
-  sem_resposta: { label: "Sem resposta", bgColor: "bg-[#FEFCE8]", textColor: "text-[#A16207]" },
-  nao_contatar: { label: "Não contatar", bgColor: "bg-[#F8FAFC]", textColor: "text-[#475569]" },
+  ativo: { label: "Ativo", bgColor: "bg-transparent", textColor: "text-[#94A3B8]" },
+  contatado: { label: "Aguardando resposta", bgColor: "bg-transparent", textColor: "text-[#3B82F6]" },
+  em_contato: { label: "Aguardando resposta", bgColor: "bg-transparent", textColor: "text-[#3B82F6]" },
+  aguardando_resposta: { label: "Sem retorno", bgColor: "bg-transparent", textColor: "text-[#F59E0B]" },
+  recuperado: { label: "Recuperado", bgColor: "bg-transparent", textColor: "text-[#10B981]" },
+  nao_contatar: { label: "Não contatar", bgColor: "bg-transparent", textColor: "text-[#94A3B8] line-through" },
+  em_risco: { label: "Em risco", bgColor: "bg-transparent", textColor: "text-[#EF4444]" },
 }
 
 const tabFilters: { key: PatientStatus | "all" | "incompletos"; label: string }[] = [
@@ -153,6 +154,7 @@ export default function PatientsPage() {
 
   // Toast
   const [toast, setToast] = useState<{ show: boolean; message: string }>({ show: false, message: "" })
+  const [menuAcaoPaciente, setMenuAcaoPaciente] = useState<Record<number, boolean>>({})
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -336,7 +338,7 @@ export default function PatientsPage() {
 
     // Tab filter
     if (activeTab === "incompletos") {
-      result = result.filter(p => p.dadosIncompletos)
+      result = result.filter(p => p.dadosIncompletos === true || (p.dadosIncompletos as any) === "true")
     } else if (activeTab === "em_risco") {
       // Usar a mesma lógica de cálculo de risco que o dashboard
       const pacientesComRisco = aplicarRisco(rawPatients)
@@ -370,8 +372,9 @@ export default function PatientsPage() {
     const counts: Record<string, number> = { all: patients.length }
     tabFilters.forEach(tab => {
       if (tab.key !== "all") {
-        if (tab.key === "em_risco") {
-          // Usar a mesma lógica de cálculo de risco que o dashboard
+        if (tab.key === "incompletos") {
+          counts[tab.key] = patients.filter(p => p.dadosIncompletos === true || (p.dadosIncompletos as any) === "true").length
+        } else if (tab.key === "em_risco") {
           const pacientesComRisco = aplicarRisco(rawPatients)
           counts[tab.key] = pacientesComRisco.filter(p => p.nivelRisco !== "ok").length
         } else {
@@ -412,6 +415,35 @@ export default function PatientsPage() {
     setTimeout(() => setToast({ show: false, message: "" }), 3000)
   }
 
+  const handleAcaoPaciente = async (pacienteId: number, acao: string) => {
+    setMenuAcaoPaciente((prev) => ({ ...prev, [pacienteId]: false }))
+    try {
+      if (acao === "recuperado") {
+        const valorStr = window.prompt("Qual o valor da consulta? (deixe em branco para usar o valor registrado)")
+        if (valorStr === null) return
+        const valor = valorStr.trim() === "" ? 0 : parseFloat(valorStr.replace(",", "."))
+        await fetch("/api/envios/recuperado", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pacienteId, acao: "recuperado", valorRecuperado: valor }),
+        })
+        showToast("Paciente marcado como recuperado!")
+      } else {
+        await fetch("/api/envios/recuperado", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pacienteId, acao }),
+        })
+        if (acao === "vai_marcar") showToast("Anotado! Paciente ficará em espera por 7 dias.")
+        if (acao === "nao_contatar") showToast("Paciente marcado como não contatar.")
+        if (acao === "numero_errado") showToast("Paciente movido para dados incompletos.")
+      }
+      await fetchPatients()
+    } catch (error) {
+      console.error(error)
+      showToast("Erro ao processar ação")
+    }
+  }
   const handleMarkAsContacted = async (patientId: number) => {
     try {
       const response = await fetch(`/api/pacientes/${patientId}`, {
@@ -987,13 +1019,20 @@ export default function PatientsPage() {
                             {patient.daysSinceVisit}
                           </td>
                           <td className="px-4 py-3 text-sm text-[#1E293B]">R$ {patient.avgTicket}</td>
-                          <td className="px-4 py-3">
-                            <span className={`inline-flex items-center px-2.5 py-1 rounded text-xs font-medium ${status.bgColor} ${status.textColor}`}>
-                              {status.label}
-                            </span>
+                         <td className="px-4 py-3">
+                            <div className="flex flex-col gap-1">
+                              <span className={`inline-flex items-center px-2.5 py-1 rounded text-xs font-medium ${status.bgColor} ${status.textColor}`}>
+                                {status.label}
+                              </span>
+                              {patient.dadosIncompletos && activeTab !== "incompletos" && (
+                                <span className="text-xs font-medium text-[#F59E0B]">
+                                  Dados incompletos
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="px-4 py-3">
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-1 relative">
                               <button
                                 onClick={() => handleOpenEdit(patient)}
                                 className="p-2 rounded-lg hover:bg-[#EFF6FF] transition-colors"
@@ -1001,13 +1040,37 @@ export default function PatientsPage() {
                               >
                                 <Pencil className="h-4 w-4 text-[#64748B]" />
                               </button>
-                              <button
-                                onClick={() => handleMarkAsContacted(patient.id)}
-                                className="p-2 rounded-lg hover:bg-[#F1F5F9] transition-colors"
-                                title="Marcar como contatado"
-                              >
-                                <Check className="h-4 w-4 text-[#64748B]" />
-                              </button>
+                              {["contatado", "aguardando_resposta"].includes(patient.status) && (
+                                <div className="relative">
+                                  <button
+                                    onClick={() => setMenuAcaoPaciente((prev) => ({ ...prev, [patient.id]: !prev[patient.id] }))}
+                                    className="p-2 rounded-lg hover:bg-[#F1F5F9] transition-colors text-[#64748B] text-xs font-bold"
+                                    title="O que aconteceu?"
+                                  >
+                                    •••
+                                  </button>
+                                  {menuAcaoPaciente[patient.id] && (
+                                  <div className="absolute right-0 top-full mt-1 w-52 bg-white border border-[#E2E8F0] rounded-xl shadow-lg z-50 overflow-hidden">
+                                    <button onClick={() => handleAcaoPaciente(patient.id, "recuperado")}
+                                      className="w-full px-4 py-2.5 text-left text-sm text-[#1E293B] hover:text-[#10B981] flex items-center gap-2 transition-colors">
+                                      ✅ Paciente voltou
+                                    </button>
+                                    <button onClick={() => handleAcaoPaciente(patient.id, "vai_marcar")}
+                                      className="w-full px-4 py-2.5 text-left text-sm text-[#1E293B] hover:text-[#3B82F6] flex items-center gap-2 transition-colors">
+                                      📅 Vai marcar consulta
+                                    </button>
+                                    <button onClick={() => handleAcaoPaciente(patient.id, "nao_contatar")}
+                                      className="w-full px-4 py-2.5 text-left text-sm text-[#1E293B] hover:text-[#EF4444] flex items-center gap-2 transition-colors">
+                                      🚫 Não quer contato
+                                    </button>
+                                    <button onClick={() => handleAcaoPaciente(patient.id, "numero_errado")}
+                                      className="w-full px-4 py-2.5 text-left text-sm text-[#1E293B] hover:text-[#F59E0B] flex items-center gap-2 transition-colors">
+                                      ❌ Número errado
+                                    </button>
+                                  </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </td>
                         </tr>

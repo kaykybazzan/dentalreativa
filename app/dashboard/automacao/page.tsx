@@ -79,6 +79,7 @@ export default function AutomacaoPage() {
   const [aguardandoConfirmacao, setAguardandoConfirmacao] = useState<Record<string, boolean>>({})
   // Mapeamento de número de tentativas por paciente
   const [tentativas, setTentativas] = useState<Record<string, number>>({})
+  const [menuAcoes, setMenuAcoes] = useState<Record<string, boolean>>({})
 
   // Mensagens (somente leitura)
   const [message1] = useState("Olá [nome]! Já faz um tempinho desde sua última consulta na [clinica]. Que tal agendar uma revisão?")
@@ -347,6 +348,50 @@ export default function AutomacaoPage() {
     console.error("Erro ao marcar como recuperado:", error)
   }
 }
+
+  const handleVaiMarcar = async (paciente: PacienteFila) => {
+    setMenuAcoes((prev) => ({ ...prev, [paciente.id]: false }))
+    try {
+      await fetch("/api/envios/recuperado", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pacienteId: paciente.id, acao: "vai_marcar" }),
+      })
+      // Some da fila por 7 dias — remove da view atual
+      setFila((prev) => prev.filter((p) => p.id !== paciente.id))
+    } catch (error) {
+      console.error(error)
+    }
+  }
+
+  const handleNaoContatar = async (paciente: PacienteFila) => {
+    setMenuAcoes((prev) => ({ ...prev, [paciente.id]: false }))
+    if (!confirm(`Marcar ${paciente.name} como "Não contatar"? Ele sairá da fila permanentemente.`)) return
+    try {
+      await fetch("/api/envios/recuperado", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pacienteId: paciente.id, acao: "nao_contatar" }),
+      })
+      setFila((prev) => prev.filter((p) => p.id !== paciente.id))
+    } catch (error) {
+      console.error(error)
+    }
+  }
+
+  const handleNumeroErrado = async (paciente: PacienteFila) => {
+    setMenuAcoes((prev) => ({ ...prev, [paciente.id]: false }))
+    try {
+      await fetch("/api/envios/recuperado", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pacienteId: paciente.id, acao: "numero_errado" }),
+      })
+      setFila((prev) => prev.filter((p) => p.id !== paciente.id))
+    } catch (error) {
+      console.error(error)
+    }
+  }
 
   const handleNavigation = (navId: string) => {
     setActiveNav(navId)
@@ -747,17 +792,37 @@ export default function AutomacaoPage() {
                           Aguardando...
                         </span>
                       ) : enviados[patient.id] ? (
-                        <div className="flex flex-col gap-1.5">
+                        <div className="flex flex-col gap-1.5 relative">
                           <div className="flex items-center gap-1.5 text-[#10B981]">
                             <CheckCircle className="h-3.5 w-3.5 shrink-0" />
                             <span className="text-xs font-medium">Enviado</span>
                           </div>
                           <button
-                            onClick={() => handlePacienteVoltou(patient)}
-                            className="text-xs text-[#64748B] hover:text-[#10B981] underline underline-offset-2 transition-colors text-left"
+                            onClick={() => setMenuAcoes((prev) => ({ ...prev, [patient.id]: !prev[patient.id] }))}
+                            className="text-xs text-[#64748B] hover:text-[#1E293B] underline underline-offset-2 transition-colors text-left"
                           >
-                            Paciente voltou?
+                            O que aconteceu? ▾
                           </button>
+                          {menuAcoes[patient.id] && (
+                            <div className="absolute top-full left-0 mt-1 w-52 bg-white border border-[#E2E8F0] rounded-xl shadow-lg z-50 overflow-hidden">
+                              <button onClick={() => handlePacienteVoltou(patient)}
+                                className="w-full px-4 py-2.5 text-left text-sm text-[#1E293B] hover:bg-[#F0FDF4] flex items-center gap-2">
+                                ✅ Paciente voltou
+                              </button>
+                              <button onClick={() => handleVaiMarcar(patient)}
+                                className="w-full px-4 py-2.5 text-left text-sm text-[#1E293B] hover:bg-[#EFF6FF] flex items-center gap-2">
+                                📅 Vai marcar consulta
+                              </button>
+                              <button onClick={() => handleNaoContatar(patient)}
+                                className="w-full px-4 py-2.5 text-left text-sm text-[#1E293B] hover:bg-[#FEF2F2] flex items-center gap-2">
+                                🚫 Não quer contato
+                              </button>
+                              <button onClick={() => handleNumeroErrado(patient)}
+                                className="w-full px-4 py-2.5 text-left text-sm text-[#1E293B] hover:bg-[#FEFCE8] flex items-center gap-2">
+                                ❌ Número errado
+                              </button>
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <Button

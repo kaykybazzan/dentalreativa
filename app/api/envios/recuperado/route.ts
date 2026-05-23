@@ -9,9 +9,8 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { pacienteId, valorRecuperado } = await req.json()
+    const { pacienteId, valorRecuperado, acao } = await req.json()
 
-    // Buscar clinicaId
     const clinicaResult = await pool.query(
       `SELECT c.id FROM "Clinica" c
        INNER JOIN "Usuario" u ON u."clinicaId" = c.id
@@ -19,33 +18,68 @@ export async function POST(req: Request) {
       [session.user.email]
     )
     const clinicaId = clinicaResult.rows[0]?.id
+    if (!clinicaId) {
+      return Response.json({ error: "Clínica não encontrada" }, { status: 404 })
+    }
 
-    // Atualizar status do paciente para recuperado
-    await pool.query(
-      `UPDATE "Paciente" SET
-        status = 'recuperado'::text::"StatusPaciente",
-        "atualizadoEm" = NOW()
-      WHERE id = $1 AND "clinicaId" = $2`,
-      [pacienteId, clinicaId]
-    )
+    if (acao === "nao_contatar") {
+      await pool.query(
+        `UPDATE "Paciente" SET
+          status = 'nao_contatar'::text::"StatusPaciente",
+          "atualizadoEm" = NOW()
+        WHERE id = $1 AND "clinicaId" = $2`,
+        [pacienteId, clinicaId]
+      )
 
-    // Atualizar o último ContactAttempt com resultado recuperado e valor
-    await pool.query(
-    `UPDATE "ContactAttempt" 
-       SET tipo = 'recuperado', "valorRecuperado" = $1
-       WHERE "pacienteId" = $2 AND "clinicaId" = $3
-       AND id = (
-         SELECT id FROM "ContactAttempt"
-         WHERE "pacienteId" = $2 AND "clinicaId" = $3
-         ORDER BY "criadoEm" DESC
-         LIMIT 1
-       )`,
-      [valorRecuperado || 0, pacienteId, clinicaId]
-    )
+    } else if (acao === "numero_errado") {
+      await pool.query(
+        `UPDATE "Paciente" SET
+          "dadosIncompletos" = true,
+          "atualizadoEm" = NOW()
+        WHERE id = $1 AND "clinicaId" = $2`,
+        [pacienteId, clinicaId]
+      )
+
+    } else if (acao === "vai_marcar") {
+      // Atualiza ultimaTentativa para agora — some da fila por 7 dias
+      // Mantém status contatado
+      await pool.query(
+        `UPDATE "Paciente" SET
+          "ultimaTentativa" = NOW(),
+          "atualizadoEm" = NOW()
+        WHERE id = $1 AND "clinicaId" = $2`,
+        [pacienteId, clinicaId]
+      )
+
+    } else {
+      // acao === "recuperado" (padrão)
+      await pool.query(
+        `UPDATE "Paciente" SET
+          status = 'recuperado'::text::"StatusPaciente",
+          "ultimaConsulta" = NOW(),
+          "tentativaAtual" = 0,
+          "ultimaTentativa" = NULL,
+          "atualizadoEm" = NOW()
+        WHERE id = $1 AND "clinicaId" = $2`,
+        [pacienteId, clinicaId]
+      )
+
+      await pool.query(
+        `UPDATE "ContactAttempt"
+          SET tipo = 'recuperado', "valorRecuperado" = $1
+          WHERE "pacienteId" = $2 AND "clinicaId" = $3
+          AND id = (
+            SELECT id FROM "ContactAttempt"
+            WHERE "pacienteId" = $2 AND "clinicaId" = $3
+            ORDER BY "criadoEm" DESC LIMIT 1
+          )`,
+        [valorRecuperado || 0, pacienteId, clinicaId]
+      )
+    }
 
     return Response.json({ success: true })
   } catch (error) {
     console.error(error)
-    return Response.json({ error: "Erro ao marcar como recuperado" }, { status: 500 })
+    return Response.json({ error: "Erro ao processar ação" }, { status: 500 })
   }
 }

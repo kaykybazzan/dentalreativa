@@ -10,6 +10,9 @@ export interface PacienteComRisco {
   valorTicket: number;
   status: string;
   dadosIncompletos: boolean;
+  tentativaAtual?: number;
+  proximaTentativa?: number;
+  diasSemResposta?: number | null;
 }
 
 // Calcula quantos dias se passaram desde a última consulta
