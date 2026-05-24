@@ -89,7 +89,7 @@ export async function GET(req: Request) {
        WHERE ca."clinicaId" = $1 AND ca."valorRecuperado" > 0`,
       [clinicaId]
     );
-    const receitaRecuperada = parseFloat(receitaRecuperadaResult.rows[0]?.total) || 0;
+    const receitaRecuperadaBruta = parseFloat(receitaRecuperadaResult.rows[0]?.total) || 0;
 
     // ── RECEITA EM RISCO ─────────────────────────────────────
     // Soma dos tickets dos pacientes em risco (180+ dias)
@@ -127,8 +127,22 @@ export async function GET(req: Request) {
 
     // Taxa de sucesso: recuperados / total contatados
     const totalContatadosNum = parseInt(totalContatados.rows[0]?.total) || 0;
+
+    const recuperadosComContato = await pool.query(
+      `SELECT COUNT(DISTINCT p.id) as total
+       FROM "Paciente" p
+       INNER JOIN "ContactAttempt" ca ON ca."pacienteId" = p.id
+       WHERE p."clinicaId" = $1 AND p.status::text = 'recuperado'`,
+      [clinicaId]
+    );
+    const recuperadosComContatoNum = parseInt(recuperadosComContato.rows[0]?.total) || 0;
+
+    const recuperadosViaContato = parseInt(recuperadosComContato.rows[0]?.total) || 0;
+    const receitaRecuperada = receitaRecuperadaBruta > 0
+      ? receitaRecuperadaBruta
+      : recuperadosViaContato * ticketMedio;
     const taxaSucesso = totalContatadosNum > 0
-      ? ((totalRecuperados / totalContatadosNum) * 100).toFixed(1)
+      ? ((recuperadosViaContato / totalContatadosNum) * 100).toFixed(1)
       : "0.0";
 
     // ── EVOLUÇÃO MENSAL ──────────────────────────────────────
@@ -239,9 +253,7 @@ export async function GET(req: Request) {
     const tempoMedioRetorno = parseInt(tempoMedioResult.rows[0]?.dias_medio) || 0
 
     // Funil histórico: total de pacientes que já passaram pelo processo
-    const totalPassaramPeloRisco = todos.filter((p) =>
-      p.status !== "ativo"
-    ).length + comRisco.filter((p) => p.status === "ativo").length
+    const totalPassaramPeloRisco = comRisco.length
 
     return Response.json({
       metricas: {
@@ -256,11 +268,12 @@ export async function GET(req: Request) {
         taxaSucesso,
         totalEnvios: parseInt(totalEnvios.rows[0]?.total) || 0,
         totalContatados: totalContatadosNum,
+        tempoMedioRetorno,
       },
       funil: {
         emRisco: totalPassaramPeloRisco,
         contatados: totalContatadosNum,
-        recuperados: totalRecuperados,
+        recuperados: recuperadosViaContato,
         enviosPorTentativa: enviosPorTentativa.rows,
       },
       evolucaoMensal: evolucaoComZeros,

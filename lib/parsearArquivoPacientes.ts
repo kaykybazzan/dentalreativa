@@ -1,8 +1,11 @@
 import * as XLSX from "xlsx";
+import { normalizarParaWhatsApp, validarTelefone } from "@/lib/formatarTelefone";
 
 export interface PacienteImportado {
   nome: string;
   telefone: string;
+  telefoneBruto: string;
+  dadosIncompletos: boolean;
   ultimaConsulta: string | null;
   valorTicket: number | null;
 }
@@ -28,9 +31,21 @@ function normalizarData(valor: any): string | null {
 
   const str = String(valor).trim();
 
-  // Formato DD/MM/AAAA
+  // Formato DD/MM/AAAA ou MM/DD/AAAA (americano gerado pelo xlsx)
   if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(str)) {
-    const [dia, mes, ano] = str.split("/");
+    const [a, b, ano] = str.split("/");
+    const numA = parseInt(a);
+    const numB = parseInt(b);
+    // Se primeiro número > 12, só pode ser DD/MM
+    // Se segundo número > 12, é MM/DD (americano)
+    let dia, mes;
+    if (numA > 12) {
+      dia = a; mes = b;
+    } else if (numB > 12) {
+      dia = b; mes = a;
+    } else {
+      dia = a; mes = b; // assume brasileiro
+    }
     return `${ano}-${mes.padStart(2, "0")}-${dia.padStart(2, "0")}`;
   }
 
@@ -112,8 +127,8 @@ export async function parsearArquivoPacientes(
   // Ler o arquivo com xlsx — funciona para .xlsx, .xls e .csv
   const workbook = XLSX.read(buffer, {
     type: "array",
-    cellDates: false, // Deixar como serial para normalizar depois
-    raw: false,
+    cellDates: false,
+    raw: true,  // ← lê tudo cru, inclusive datas como serial
   });
 
   // Pegar a primeira aba
@@ -121,10 +136,37 @@ export async function parsearArquivoPacientes(
   const planilha = workbook.Sheets[nomePrimeiraAba];
 
   // Converter para array de objetos
-  const linhas: any[] = XLSX.utils.sheet_to_json(planilha, {
-    raw: false,       // converter para string
-    defval: "",       // valor padrão para células vazias
+  const linhasRaw: any[] = XLSX.utils.sheet_to_json(planilha, {
+    raw: false,
+    defval: "",
   });
+
+  // Detectar se tem cabeçalho reconhecível
+  const primeiraChave = linhasRaw[0] ? normalizarChave(Object.keys(linhasRaw[0])[0]) : ""
+  const temCabecalho = ["nome", "name", "paciente", "telefone", "fone", "celular"].includes(primeiraChave)
+
+  // Se não tem cabeçalho, ler como array posicional (A=nome, B=telefone, C=data, D=valor)
+  let linhas: any[]
+  if (!temCabecalho && linhasRaw.length > 0) {
+    const linhasArray: any[][] = XLSX.utils.sheet_to_json(planilha, {
+      raw: true,        // ← pega serial do Excel, não converte para US
+      defval: "",
+      header: 1,
+    }) as any[][]
+    linhas = linhasArray
+      .filter(row => {
+        const telefone = String(row[1] || "").trim()
+        return row.some(v => String(v).trim() !== "") && telefone !== ""
+      })
+      .map(row => ({
+        nome: row[0] || "",
+        telefone: row[1] || "",
+        ultima_consulta: row[2] || "",
+        valor_ticket: row[3] || "",
+      }))
+  } else {
+    linhas = linhasRaw
+  }
 
   console.log(`📋 Total de linhas lidas: ${linhas.length}`);
   console.log("📋 Exemplo da primeira linha:", linhas[0]);
@@ -162,8 +204,10 @@ export async function parsearArquivoPacientes(
         linhaNormalizada["tel"] ||
         "";
 
-      // Limpar telefone — só números
-      const telefone = String(telefoneRaw).replace(/\D/g, "");
+      // Normalizar telefone para WhatsApp
+      const telefoneBruto = String(telefoneRaw).trim()
+      const telefone = normalizarParaWhatsApp(telefoneBruto)
+      const dadosIncompletos = !validarTelefone(telefoneBruto)
 
       // Buscar data — aceitar variações
       const dataRaw =
@@ -187,7 +231,7 @@ export async function parsearArquivoPacientes(
 
       const valorTicket = valorRaw ? parseFloat(String(valorRaw).replace(/[^\d.,]/g, "").replace(",", ".")) || null : null;
 
-      return { nome: String(nome).trim(), telefone, ultimaConsulta, valorTicket };
+      return { nome: String(nome).trim(), telefone, telefoneBruto, dadosIncompletos, ultimaConsulta, valorTicket };
     });
 }
 

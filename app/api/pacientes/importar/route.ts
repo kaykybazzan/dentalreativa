@@ -67,16 +67,25 @@ export async function POST(req: Request) {
         incompletos++;
       }
 
-      // Checar duplicata apenas se tiver telefone
-      if (telefoneLimpo) {
-        const duplicata = await pool.query(
-          `SELECT id FROM "Paciente" WHERE "clinicaId" = $1 AND telefone = $2`,
-          [clinicaId, telefoneLimpo]
+      // Sem telefone — inserir como incompleto com telefone placeholder
+      if (!telefoneLimpo) {
+        await pool.query(
+          `INSERT INTO "Paciente" ("clinicaId", nome, telefone, "ultimaConsulta", "valorUltimaConsulta", "dadosIncompletos", status)
+           VALUES ($1, $2, $3, $4::date, $5, $6, 'ativo')`,
+          [clinicaId, nomeValido || "Sem nome", `incompleto_${Date.now()}`, dataValida, valorTicket, true]
         )
-        if (duplicata.rows.length > 0) {
-          duplicados++
-          continue
-        }
+        incompletos++
+        continue
+      }
+
+      // Checar duplicata
+      const duplicata = await pool.query(
+        `SELECT id FROM "Paciente" WHERE "clinicaId" = $1 AND telefone = $2`,
+        [clinicaId, telefoneLimpo]
+      )
+      if (duplicata.rows.length > 0) {
+        duplicados++
+        continue
       }
 
       

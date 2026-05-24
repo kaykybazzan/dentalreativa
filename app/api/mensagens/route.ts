@@ -10,7 +10,7 @@ export async function GET() {
 
   try {
     const result = await pool.query(
-      `SELECT cm.mensagem1, cm.mensagem2, cm.mensagem3
+      `SELECT cm.mensagem1, cm.mensagem2, cm.mensagem3, cm."mensagemDireta"
        FROM "ConfiguracaoMensagens" cm
        INNER JOIN "Clinica" c ON c.id = cm."clinicaId"
        INNER JOIN "Usuario" u ON u."clinicaId" = c.id
@@ -24,10 +24,15 @@ export async function GET() {
         mensagem1: "Olá, {nome}! Tudo bem? Aqui é da {clinica}. Notamos que faz um tempo que não te vemos por aqui. Que tal agendar uma consulta de revisão? 😊",
         mensagem2: "Oi, {nome}! Passando para lembrar que sua saúde bucal é muito importante. Na {clinica} temos horários disponíveis para você. Vamos agendar?",
         mensagem3: "{nome}, essa é nossa última tentativa de contato. Adoraríamos ter você de volta na {clinica}. Se precisar de nós, estaremos aqui! 🦷",
+        mensagemDireta: "Olá [nome]! Aqui é a [clinica]. Tudo bem? Que tal agendar sua consulta? 😊",
       })
     }
 
-    return Response.json(result.rows[0])
+    const row = result.rows[0]
+    return Response.json({
+      ...row,
+      mensagemDireta: row.mensagemDireta ?? "Olá [nome]! Aqui é a [clinica]. Tudo bem? Que tal agendar sua consulta? 😊",
+    })
   } catch (error) {
     console.error(error)
     return Response.json({ error: "Erro ao buscar mensagens" }, { status: 500 })
@@ -41,7 +46,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { mensagem1, mensagem2, mensagem3 } = await req.json()
+    const { mensagem1, mensagem2, mensagem3, mensagemDireta } = await req.json()
 
     // Buscar o ID da clínica pelo email do usuário
     const clinicaResult = await pool.query(
@@ -58,11 +63,11 @@ export async function POST(req: Request) {
 
     // Upsert — salva ou atualiza se já existir
     await pool.query(
-      `INSERT INTO "ConfiguracaoMensagens" ("clinicaId", mensagem1, mensagem2, mensagem3)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO "ConfiguracaoMensagens" ("clinicaId", mensagem1, mensagem2, mensagem3, "mensagemDireta")
+       VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT ("clinicaId")
-       DO UPDATE SET mensagem1 = $2, mensagem2 = $3, mensagem3 = $4`,
-      [clinicaId, mensagem1, mensagem2, mensagem3]
+       DO UPDATE SET mensagem1 = $2, mensagem2 = $3, mensagem3 = $4, "mensagemDireta" = $5`,
+      [clinicaId, mensagem1, mensagem2, mensagem3, mensagemDireta]
     )
 
     return Response.json({ success: true })

@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import Image from "next/image"
+import { gerarLinkWhatsApp, formatarTelefoneExibicao, validarTelefone } from "@/lib/formatarTelefone"
 
 interface PacienteFila {
   id: string
@@ -63,7 +64,7 @@ export default function AutomacaoPage() {
   const { data: session } = useSession()
   const [clinicName, setClinicName] = useState("")
   const [clinicCity, setClinicCity] = useState("")
-  const [userName, setUserName] = useState("")
+  const [userName, setUserName] = useState(session?.user?.name?.split(" ")[0] ?? "")
   const [activeNav, setActiveNav] = useState("automation")
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showProfileModal, setShowProfileModal] = useState(false)
@@ -129,9 +130,7 @@ export default function AutomacaoPage() {
         if (!nomeMatch && !telefoneMatch) return false
       }
 
-      // Filtro: apenas não enviados
-      if (showOnlyUnsent && enviados[p.id]) return false
-
+      
       // Filtro: tentativa
       if (activeFilterAttempt !== "all" && p.attempt !== activeFilterAttempt) return false
 
@@ -274,13 +273,15 @@ export default function AutomacaoPage() {
       const msgRes = await fetch(`/api/envios/mensagem?pacienteId=${paciente.id}`)
       const { mensagem, tentativa } = await msgRes.json()
 
-      // 2. Gerar o link do WhatsApp
-      // Telefone já está normalizado (só números) — adicionar 55 se não tiver
-      const telefone = paciente.telefone.startsWith("55")
-        ? paciente.telefone
-        : `55${paciente.telefone}`
+      // 2. Gerar o link do WhatsApp com normalização do 9º dígito
+      const linkWhatsApp = gerarLinkWhatsApp(paciente.telefone, mensagem)
 
-      const linkWhatsApp = `https://wa.me/${telefone}?text=${encodeURIComponent(mensagem)}`
+      if (!linkWhatsApp) {
+        // Telefone inválido — mostrar alerta para a recepcionista
+        alert(`Número inválido para ${paciente.nome}: ${paciente.telefone}`)
+        setEnviando((prev) => ({ ...prev, [paciente.id]: false }))
+        return
+      }
 
       // 3. Abrir o WhatsApp em nova aba
       window.open(linkWhatsApp, "_blank")
@@ -696,19 +697,7 @@ export default function AutomacaoPage() {
                 <option value="value">Maior valor primeiro</option>
               </select>
 
-              {/* Toggle apenas não enviados */}
-              <button
-                onClick={() => setShowOnlyUnsent(!showOnlyUnsent)}
-                className={`flex items-center gap-2 h-9 px-4 rounded-lg border text-sm font-medium transition-colors ${
-                  showOnlyUnsent
-                    ? "bg-[#EFF6FF] text-[#1D4ED8] border-[#BFDBFE]"
-                    : "bg-white text-[#64748B] border-[#E2E8F0] hover:bg-[#F8FAFC]"
-                }`}
-              >
-                <span className={`w-2 h-2 rounded-full ${showOnlyUnsent ? "bg-[#1D4ED8]" : "bg-[#94A3B8]"}`} />
-                Apenas não enviados
-              </button>
-
+              
               {/* Limpar filtros */}
               {activeFiltersCount > 0 && (
                 <button
@@ -750,7 +739,16 @@ export default function AutomacaoPage() {
                         {patient.attempt === "3" && (
                           <p className="text-sm text-[#EF4444] font-medium">⚠️ Última chance</p>
                         )}
-                        <p className="text-sm text-[#64748B]">{patient.phone ?? "-"}</p>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-[#64748B]">
+                            {formatarTelefoneExibicao(patient.phone) ?? "-"}
+                          </span>
+                          {!validarTelefone(patient.phone) && (
+                            <span className="text-xs bg-[#FEF2F2] text-[#EF4444] px-2 py-0.5 rounded-full font-medium">
+                              Número inválido
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -842,8 +840,8 @@ export default function AutomacaoPage() {
                       ) : (
                         <Button
                           onClick={() => handleEnviarWhatsApp(patient)}
-                          disabled={enviando[patient.id] || enviados[patient.id]}
-                          className="bg-[#25D366] hover:bg-[#1fad52] text-white text-sm h-8 px-3 flex items-center gap-1.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                          disabled={enviando[patient.id] || enviados[patient.id] || !validarTelefone(patient.phone)}
+                          className={`bg-[#25D366] hover:bg-[#1fad52] text-white text-sm h-8 px-3 flex items-center gap-1.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed ${!validarTelefone(patient.phone) ? "opacity-40 cursor-not-allowed" : ""}`}
                         >
                           <svg viewBox="0 0 24 24" width="14" height="14" fill="white">
                             <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>

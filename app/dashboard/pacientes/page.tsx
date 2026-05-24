@@ -45,8 +45,9 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { parsearArquivoPacientes } from "@/lib/parsearArquivoPacientes"
 import { aplicarRisco } from "@/lib/calcularRisco"
+import { normalizarParaWhatsApp, validarTelefone, gerarLinkWhatsApp } from "@/lib/formatarTelefone"
 
-type PatientStatus = "em_risco" | "ativo" | "em_contato" | "recuperado" | "sem_resposta" | "nao_contatar"
+type PatientStatus = "em_risco" | "ativo" | "em_contato" | "contatado" | "recuperado" | "sem_resposta" | "nao_contatar"
 
 type Patient = {
   id: number
@@ -57,9 +58,10 @@ type Patient = {
   avgTicket: number
   status: PatientStatus
   avatarColor: string
-  dadosIncompletos?: boolean // Added for filtering
-  procedimento?: string  // ← adicionar
-  rawUltimaConsulta?: string  // ← adicionar (data ISO para edição)
+  dadosIncompletos?: boolean
+  procedimento?: string
+  rawUltimaConsulta?: string
+  vaiMarcar?: boolean
 }
 
 const samplePatients: Patient[] = [
@@ -89,7 +91,7 @@ const tabFilters: { key: PatientStatus | "all" | "incompletos"; label: string }[
   { key: "all", label: "Todos" },
   { key: "incompletos", label: "Dados incompletos" },
   { key: "em_risco", label: "Em risco" },
-  { key: "em_contato", label: "Em contato" },
+  { key: "contatado", label: "Em contato" },
   { key: "recuperado", label: "Recuperados" },
 ]
 
@@ -155,6 +157,8 @@ export default function PatientsPage() {
   // Toast
   const [toast, setToast] = useState<{ show: boolean; message: string }>({ show: false, message: "" })
   const [menuAcaoPaciente, setMenuAcaoPaciente] = useState<Record<number, boolean>>({})
+  const [mensagemDireta, setMensagemDireta] = useState("")
+const [mensagem1, setMensagem1] = useState("")
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -187,8 +191,29 @@ export default function PatientsPage() {
 
       // Fetch patients from API
       fetchPatients()
+
+      fetch("/api/mensagens")
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.mensagemDireta) setMensagemDireta(data.mensagemDireta)
+        })
+        .catch(() => {})
+
+      // Buscar mensagem1 das configurações
+      fetch("/api/mensagens")
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.mensagem1) setMensagem1(data.mensagem1)
+        })
+        .catch(() => {})
     }
   }, [])
+
+  const montarMensagem = (template: string, nome: string) => {
+    return template
+      .replace(/\[nome\]/g, nome)
+      .replace(/\[clinica\]/g, clinicName)
+  }
 
   const fetchPatients = async () => {
     try {
@@ -201,8 +226,21 @@ export default function PatientsPage() {
           const daysSinceVisit = ultimaConsulta 
             ? Math.floor((Date.now() - ultimaConsulta.getTime()) / (1000 * 60 * 60 * 24))
             : 0
-          const avatarColors = ["bg-[#3B82F6]", "bg-[#10B981]", "bg-[#8B5CF6]", "bg-[#F59E0B]", "bg-[#EF4444]"]
-          
+          const getAvatarColor = (nome: string) => {
+            const colors = [
+              "bg-[#3B82F6]",
+              "bg-[#10B981]",
+              "bg-[#F59E0B]",
+              "bg-[#EF4444]",
+              "bg-[#0891B2]",
+              "bg-[#8B5CF6]",
+              "bg-[#EC4899]",
+              "bg-[#F97316]",
+            ]
+            const hash = (nome ?? "").split("").reduce((acc, char) => acc + char.charCodeAt(0), 0)
+            return colors[hash % colors.length]
+          }
+
           return {
             id: p.id,
             name: p.nome,
@@ -212,9 +250,10 @@ export default function PatientsPage() {
             daysSinceVisit,
             avgTicket: p.valorUltimaConsulta || 0,
             status: p.status || 'ativo',
-            avatarColor: avatarColors[Math.floor(Math.random() * avatarColors.length)],
+            avatarColor: getAvatarColor(p.nome),
             dadosIncompletos: p.dadosIncompletos || false,
-            procedimento: p.procedimento || ''
+            procedimento: p.procedimento || '',
+            vaiMarcar: p.vaiMarcar || false
           }
         })
         setPatients(mappedPatients)
@@ -487,6 +526,32 @@ export default function PatientsPage() {
     }
   }
 
+  const handleBulkPacienteVoltou = async () => {
+  if (selectedPatients.length > 1) {
+    showToast("Para registrar o retorno, selecione um paciente por vez.")
+    return
+  }
+  const valorStr = window.prompt("Qual o valor da consulta? (deixe em branco para usar o valor registrado)")
+  if (valorStr === null) return
+  const valor = valorStr.trim() === "" ? 0 : parseFloat(valorStr.replace(",", "."))
+  try {
+    await Promise.all(
+      selectedPatients.map(id =>
+        fetch("/api/envios/recuperado", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pacienteId: id, acao: "recuperado", valorRecuperado: valor }),
+        })
+      )
+    )
+    setSelectedPatients([])
+    await fetchPatients()
+    showToast(`${selectedPatients.length} pacientes marcados como recuperados!`)
+  } catch {
+    showToast("Erro ao atualizar pacientes")
+  }
+}
+
   const handleOpenEdit = (patient: Patient) => {
     setEditingPatient(patient)
     setEditForm({
@@ -501,13 +566,22 @@ export default function PatientsPage() {
 
   const handleSaveEdit = async () => {
     if (!editingPatient) return
+
+    if (editForm.phone && !validarTelefone(editForm.phone)) {
+      showToast("Telefone inválido. Digite DDD + número. Ex: (47) 99999-0000")
+      return
+    }
+
+    const telefoneNormalizado = editForm.phone ? normalizarParaWhatsApp(editForm.phone) : undefined
+
     try {
       const response = await fetch(`/api/pacientes/${editingPatient.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           nome: editForm.name,
-          telefone: editForm.phone,
+          telefone: telefoneNormalizado,
+          telefoneBruto: editForm.phone,
           ultimaConsulta: editForm.lastVisit || undefined,
           procedimento: editForm.procedure || undefined,
           valorUltimaConsulta: editForm.value ? parseFloat(editForm.value) : undefined,
@@ -554,6 +628,13 @@ export default function PatientsPage() {
 
   const handleAddPatient = async () => {
     if (!newPatient.name || !newPatient.phone || !newPatient.lastVisit) return
+
+    if (!validarTelefone(newPatient.phone)) {
+      showToast("Telefone inválido. Digite DDD + número. Ex: (47) 99999-0000")
+      return
+    }
+
+    const telefoneNormalizado = normalizarParaWhatsApp(newPatient.phone)
     
     try {
       const response = await fetch('/api/pacientes', {
@@ -561,7 +642,8 @@ export default function PatientsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           nome: newPatient.name,
-          telefone: newPatient.phone,
+          telefone: telefoneNormalizado,
+          telefoneBruto: newPatient.phone,
           ultimaConsulta: newPatient.lastVisit,
           procedimento: newPatient.procedure || undefined,
           valor_ticket: newPatient.value ? parseFloat(newPatient.value) : undefined,
@@ -921,16 +1003,16 @@ export default function PatientsPage() {
                 {selectedPatients.length} pacientes selecionados
               </span>
               <div className="flex items-center gap-3">
-                <Button onClick={handleBulkMarkAsContacted}>
-                  Marcar como contatado
-                </Button>
-                <button 
-                  onClick={() => setSelectedPatients([])}
-                  className="text-xs text-[#64748B] hover:text-[#1E293B]"
-                >
-                  Desmarcar todos
-                </button>
-              </div>
+              <Button onClick={handleBulkPacienteVoltou} className="bg-[#10B981] hover:bg-[#059669] text-white">
+                ✅ Paciente voltou
+              </Button>
+              <button 
+                onClick={() => setSelectedPatients([])}
+                className="text-xs text-[#64748B] hover:text-[#1E293B]"
+              >
+                Desmarcar todos
+              </button>
+            </div>
             </div>
           )}
 
@@ -939,12 +1021,7 @@ export default function PatientsPage() {
             <table className="w-full">
               <thead>
                 <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
-                  <th className="px-4 py-3 text-left">
-                    <Checkbox 
-                      checked={selectedPatients.length === paginatedPatients.length && paginatedPatients.length > 0}
-                      onCheckedChange={handleSelectAll}
-                    />
-                  </th>
+                  <th className="px-4 py-3 text-left" />
                   <th className="px-4 py-3 text-left text-xs font-medium text-[#64748B] uppercase tracking-wider">Nome</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-[#64748B] uppercase tracking-wider">Telefone</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-[#64748B] uppercase tracking-wider">Última consulta</th>
@@ -993,22 +1070,27 @@ export default function PatientsPage() {
                       return (
                         <tr key={patient.id} className="hover:bg-[#F8FAFC] transition-colors h-16">
                           <td className="px-4 py-3">
-                            <Checkbox 
+                            <input
+                              type="radio"
+                              name="selectedPatient"
                               checked={selectedPatients.includes(patient.id)}
-                              onCheckedChange={(checked) => handleSelectPatient(patient.id, checked as boolean)}
+                              onChange={() => setSelectedPatients([patient.id])}
+                              className="w-4 h-4 accent-[#0F3460] cursor-pointer"
                             />
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-3">
-                              <div className={`flex h-9 w-9 items-center justify-center rounded-full ${patient.avatarColor ?? "bg-[#3B82F6]"} text-white text-sm font-medium`}>
-                                {patient.name ? patient.name.split(" ").map(n => n[0]).slice(0, 2).join("") : "SN"}
+                              <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${patient.avatarColor ?? "bg-[#3B82F6]"} text-white text-xs font-semibold`}>
+                                {patient.name ? patient.name.split(" ").filter(n => n[0]).map(n => n[0]).slice(0, 2).join("").toUpperCase() : "?"}
                               </div>
                               <span className="text-sm font-semibold text-[#1E293B] hover:text-[#0F3460] hover:underline cursor-pointer">
                                 {patient.name ?? "Sem nome"}
                               </span>
                             </div>
                           </td>
-                          <td className="px-4 py-3 text-sm text-[#64748B]">{patient.phone ?? "—"}</td>
+                          <td className="px-4 py-3 text-sm text-[#64748B]">
+                            {patient.phone?.startsWith("incompleto_") ? "—" : patient.phone ?? "—"}
+                          </td>
                           <td className="px-4 py-3">
                           <div className="text-sm text-[#64748B]">{patient.lastVisit ?? "—"}</div>
                           {patient.procedimento && (
@@ -1020,19 +1102,43 @@ export default function PatientsPage() {
                           </td>
                           <td className="px-4 py-3 text-sm text-[#1E293B]">R$ {patient.avgTicket}</td>
                          <td className="px-4 py-3">
-                            <div className="flex flex-col gap-1">
-                              <span className={`inline-flex items-center px-2.5 py-1 rounded text-xs font-medium ${status.bgColor} ${status.textColor}`}>
+                            <div className="flex flex-col gap-1 items-start">
+                              <span className={`text-xs font-medium ${status.textColor}`}>
                                 {status.label}
                               </span>
-                              {patient.dadosIncompletos && activeTab !== "incompletos" && (
+                              {patient.dadosIncompletos && (
                                 <span className="text-xs font-medium text-[#F59E0B]">
                                   Dados incompletos
+                                </span>
+                              )}
+                              {patient.vaiMarcar && (
+                                <span className="text-xs font-medium text-[#0891B2]">
+                                  Vai marcar
                                 </span>
                               )}
                             </div>
                           </td>
                           <td className="px-4 py-3">
-                            <div className="flex items-center gap-1 relative">
+                          <div className="flex items-center gap-1 relative">
+                            {validarTelefone(patient.phone) && (<a
+                              
+                                href={gerarLinkWhatsApp(
+                                  patient.phone,
+                                  (mensagemDireta || `Olá ${patient.name}! Aqui é a ${clinicName}. Tudo bem?`)
+                                    .replace(/\[nome\]/g, patient.name)
+                                    .replace(/\[clinica\]/g, clinicName)
+                                ) ?? "#"}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title="Enviar mensagem no WhatsApp"
+                                className="p-2 rounded-lg hover:bg-[#F0FDF4] transition-colors"
+                              >
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="#25D366">
+                                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                                  <path d="M12 0C5.373 0 0 5.373 0 12c0 2.125.554 4.122 1.523 5.855L.057 23.428a.75.75 0 0 0 .916.916l5.573-1.466A11.943 11.943 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.907 0-3.696-.534-5.218-1.457l-.374-.223-3.879 1.021 1.021-3.879-.223-.374A9.944 9.944 0 0 1 2 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/>
+                                </svg>
+                              </a>
+                            )}
                               <button
                                 onClick={() => handleOpenEdit(patient)}
                                 className="p-2 rounded-lg hover:bg-[#EFF6FF] transition-colors"
@@ -1139,6 +1245,9 @@ export default function PatientsPage() {
             <div>
               <label className="text-sm font-medium text-[#1E293B] mb-1.5 block">Telefone *</label>
               <Input placeholder="(11) 99999-9999" value={newPatient.phone} onChange={(e) => setNewPatient(prev => ({ ...prev, phone: formatPhoneInput(e.target.value) }))} className="h-11" maxLength={15} />
+              {newPatient.phone && !validarTelefone(newPatient.phone) && (
+                <p className="text-xs text-[#EF4444] mt-1">Número inválido. Digite DDD + 8 ou 9 dígitos.</p>
+              )}
             </div>
             <div>
               <label className="text-sm font-medium text-[#1E293B] mb-1.5 block">Data da última consulta *</label>
@@ -1174,7 +1283,13 @@ export default function PatientsPage() {
             </div>
             <div className="flex justify-between pt-4">
               <Button variant="outline" onClick={() => setShowAddModal(false)} className="border-[#E2E8F0] text-[#64748B]">Cancelar</Button>
-              <Button onClick={handleAddPatient} className="bg-[#0F3460] hover:bg-[#0F3460]/90 text-white">Salvar paciente</Button>
+              <Button
+                onClick={handleAddPatient}
+                disabled={!newPatient.name || !validarTelefone(newPatient.phone) || !newPatient.lastVisit}
+                className="bg-[#0F3460] hover:bg-[#0F3460]/90 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Salvar paciente
+              </Button>
             </div>
           </div>
         </DialogContent>
@@ -1242,6 +1357,9 @@ export default function PatientsPage() {
             <div>
               <label className="text-sm font-medium text-[#1E293B] mb-1.5 block">Telefone</label>
               <Input value={editForm.phone} onChange={(e) => setEditForm(prev => ({ ...prev, phone: formatPhoneInput(e.target.value) }))} className="h-11" maxLength={15} />
+              {editForm.phone && !validarTelefone(editForm.phone) && (
+                <p className="text-xs text-[#EF4444] mt-1">Número inválido. Digite DDD + 8 ou 9 dígitos.</p>
+              )}
             </div>
             <div>
               <label className="text-sm font-medium text-[#1E293B] mb-1.5 block">Data da última consulta</label>

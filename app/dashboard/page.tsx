@@ -50,6 +50,7 @@ import {
   Legend
 } from "recharts"
 import { DateRangePicker } from "@/components/date-range-picker"
+import { gerarLinkWhatsApp, construirMensagem } from "@/lib/formatarTelefone"
 
 type Patient = {
   id: number
@@ -184,7 +185,7 @@ export default function DashboardPage() {
     })
     .catch(() => {})
     }
-  }, [router])
+  }, [router, session])
 
   useEffect(() => {
     setCarregando(true)
@@ -266,9 +267,17 @@ export default function DashboardPage() {
     )
 
   const handleWhatsApp = (phone: string, name: string) => {
-    const cleanPhone = phone.replace(/\D/g, "")
-    const message = encodeURIComponent(`Olá ${name}! Estamos entrando em contato para agendar sua consulta.`)
-    window.open(`https://wa.me/55${cleanPhone}?text=${message}`, "_blank")
+    const mensagem = construirMensagem(
+      "Olá [nome]! Sentimos sua falta na clínica. Podemos agendar uma revisão para você?",
+      name,
+      clinicName
+    )
+    const link = gerarLinkWhatsApp(phone, mensagem)
+    if (!link) {
+      alert(`Número inválido: ${phone}`)
+      return
+    }
+    window.open(link, "_blank")
   }
 
   const getActionBadge = (action: string) => {
@@ -611,9 +620,9 @@ export default function DashboardPage() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-sm text-[#64748B]">Aguardando resposta</p>
-                  <p className="text-3xl font-semibold text-[#1E293B] mt-2">{carregando ? "..." : dados?.cards?.totalPacientes ?? 0}</p>
+                  <p className="text-3xl font-semibold text-[#1E293B] mt-2">{carregando ? "..." : dados?.cards?.aguardandoResposta ?? 0}</p>
                   <div className="mt-2">
-                    <p className="text-xs text-[#64748B] mt-0.5">total de pacientes</p>
+                    <p className="text-xs text-[#64748B] mt-0.5">sem retorno após contato</p>
                   </div>
                 </div>
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#FFF7ED]">
@@ -627,7 +636,7 @@ export default function DashboardPage() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-sm text-[#64748B]">Contatados este mês</p>
-                  <p className="text-3xl font-semibold text-[#1E293B] mt-2">{carregando ? "..." : dados?.cards?.recuperados ?? 0}</p>
+                  <p className="text-3xl font-semibold text-[#1E293B] mt-2">{carregando ? "..." : dados?.cards?.recuperadosViaContato ?? 0}</p>
                   <div className="mt-2">
                     <p className="text-xs text-[#64748B] mt-0.5">pacientes recuperados</p>
                   </div>

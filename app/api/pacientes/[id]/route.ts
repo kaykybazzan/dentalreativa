@@ -64,9 +64,13 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       return Response.json({ error: "Nenhum campo para atualizar" }, { status: 400 })
     }
 
-    // Verificar dados incompletos automaticamente
-    updates.push(`"dadosIncompletos" = CASE WHEN telefone != '' AND "ultimaConsulta" IS NOT NULL THEN false ELSE "dadosIncompletos" END`)
-
+    // Se ultimaConsulta está sendo preenchida agora, reseta dadosIncompletos
+    if (ultimaConsulta !== undefined && ultimaConsulta !== null && ultimaConsulta !== '') {
+      updates.push(`"dadosIncompletos" = false`)
+    } else {
+      updates.push(`"dadosIncompletos" = CASE WHEN telefone != '' AND "ultimaConsulta" IS NOT NULL THEN false ELSE "dadosIncompletos" END`)
+    }
+    
     values.push(id)
     await pool.query(
       `UPDATE "Paciente" SET ${updates.join(", ")} WHERE id = $${paramIndex}`,

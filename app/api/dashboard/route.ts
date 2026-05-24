@@ -56,8 +56,8 @@ export async function GET(req: Request) {
     // Métricas para os cards do dashboard
     const totalPacientes = todos.length
     const emRisco = comRisco.filter((p) => p.nivelRisco !== "ok").length
-    const criticos = comRisco.filter((p) => p.nivelRisco === "critico")
     const recuperados = todos.filter((p) => p.status === "recuperado").length
+    const aguardandoResposta = todos.filter((p) => p.status === "aguardando_resposta").length
 
     // Receita em risco: soma dos tickets dos pacientes em risco
     const receitaEmRisco = comRisco
@@ -74,19 +74,34 @@ export async function GET(req: Request) {
     const clinicaId = clinicaResult.rows[0]?.id
     const ticketMedio = parseFloat(clinicaResult.rows[0]?.ticketMedio) || 0
 
+    // Recuperados via contato (pacientes que passaram pela Central de Envios)
+    const recuperadosViaContato = await pool.query(
+      `SELECT COUNT(DISTINCT p.id) as total
+       FROM "Paciente" p
+       INNER JOIN "ContactAttempt" ca ON ca."pacienteId" = p.id
+       WHERE p."clinicaId" = $1 AND p.status::text = 'recuperado'`,
+      [clinicaId]
+    )
+    const totalRecuperadosViaContato = parseInt(recuperadosViaContato.rows[0]?.total) || 0
+
     // Para pacientes sem valorUltimaConsulta definido, usar o ticket médio da clínica como fallback
     const receitaEmRiscoComFallback = comRisco
       .filter((p) => p.nivelRisco !== "ok")
       .reduce((acc, p) => acc + (p.valorTicket > 0 ? p.valorTicket : ticketMedio), 0)
 
     // Top 5 urgentes para a tabela do dashboard (críticos com mais dias)
-    const urgentes = criticos.slice(0, 5).map((p) => ({
-      id: p.id,
-      nome: p.nome,
-      diasSemConsulta: p.diasSemConsulta,
-      nivelRisco: p.nivelRisco,
-      valorTicket: p.valorTicket > 0 ? p.valorTicket : ticketMedio,
-    }))
+    const urgentes = comRisco
+      .filter((p) => p.nivelRisco !== "ok")
+      .sort((a, b) => b.diasSemConsulta - a.diasSemConsulta)
+      .slice(0, 5)
+      .map((p) => ({
+        id: p.id,
+        nome: p.nome,
+        telefone: p.telefone,
+        diasSemConsulta: p.diasSemConsulta,
+        nivelRisco: p.nivelRisco,
+        valorTicket: p.valorTicket > 0 ? p.valorTicket : ticketMedio,
+      }))
 
     // Gerar meses do período com zeros como fallback
     const hoje = new Date()
@@ -192,6 +207,8 @@ export async function GET(req: Request) {
         totalPacientes,
         emRisco,
         recuperados,
+        recuperadosViaContato: totalRecuperadosViaContato,
+        aguardandoResposta,
         receitaEmRisco: receitaEmRiscoComFallback,
       },
       urgentes,

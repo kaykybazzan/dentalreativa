@@ -474,12 +474,12 @@ export function SignupModal({ isOpen, onClose, onSuccess }: SignupModalProps) {
                   }}
                   className="mt-0.5"
                 />
-                <Label htmlFor="terms" className="text-sm text-muted-foreground leading-tight cursor-pointer">
+                <label htmlFor="terms" className="text-sm text-muted-foreground cursor-pointer flex items-start gap-2">
                   Concordo com os{" "}
-                  <a href="/termos" target="_blank" className="text-primary hover:underline">Termos de uso</a>
+                  <a href="/termos" className="text-[#0F3460] font-semibold underline">Termos de uso</a>
                   {" "}e{" "}
-                  <a href="/privacidade" target="_blank" className="text-[#2563eb] hover:underline">Política de privacidade</a>
-                </Label>
+                  <a href="/privacidade" className="text-[#0F3460] font-semibold underline">Política de privacidade</a>
+                </label>
               </div>
               {errors.terms && (
                 <p className="text-sm text-destructive">{errors.terms}</p>

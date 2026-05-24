@@ -63,10 +63,12 @@ export default function ConfiguracoesPage() {
   const [message1, setMessage1] = useState("")
   const [message2, setMessage2] = useState("")
   const [message3, setMessage3] = useState("")
+  const [messageDireta, setMessageDireta] = useState("")
 
   const textarea1Ref = useRef<HTMLTextAreaElement>(null)
   const textarea2Ref = useRef<HTMLTextAreaElement>(null)
   const textarea3Ref = useRef<HTMLTextAreaElement>(null)
+  const textareaDiretaRef = useRef<HTMLTextAreaElement>(null)
 
   // Save states
   const [savingClinica, setSavingClinica] = useState(false)
@@ -75,51 +77,32 @@ export default function ConfiguracoesPage() {
   const [toastMessage, setToastMessage] = useState<string | null>(null)
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      if (localStorage.getItem("onboarding_done") !== "true") {
-        router.push("/onboarding")
-        return
-      }
-      setActiveNav("settings")
+  setActiveNav("settings")
 
-      // Carregar dados da clínica
-      fetch("/api/clinica")
-      .then((res) => res.json())
-      .then((data) => {
-        setClinicName(data.nome ?? "")
-        setClinicCity(data.cidade ?? "")
-        setFieldClinicName(data.nome ?? "")
-        setFieldPhone(data.telefone ?? "")
-        setFieldCity(data.cidade ?? "")
-        setFieldTicketMedio(data.ticketMedio?.toString() ?? "")
-      })
-      .catch((error) => console.error("Erro ao carregar clínica:", error))
+  fetch("/api/clinica")
+    .then((res) => res.json())
+    .then((data) => {
+      setClinicName(data.nome ?? "")
+      setClinicCity(data.cidade ?? "")
+      setFieldClinicName(data.nome ?? "")
+      setFieldPhone(data.telefone ?? "")
+      setFieldCity(data.cidade ?? "")
+      setFieldTicketMedio(data.ticketMedio?.toString() ?? "")
+    })
+    .catch((error) => console.error("Erro ao carregar clínica:", error))
 
-      
-      if (session?.user?.name) setUserName(session.user.name.split(" ")[0])
+  if (session?.user?.name) setUserName(session.user.name.split(" ")[0])
 
-      // Carregar mensagens
-      fetch("/api/mensagens")
-        .then((res) => res.json())
-        .then((data) => {
-          setMessage1(data.mensagem1 ?? "")
-          setMessage2(data.mensagem2 ?? "")
-          setMessage3(data.mensagem3 ?? "")
-        })
-        .catch((error) => console.error("Erro ao carregar mensagens:", error))
-    }
-  }, [router])
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement
-      if (!target.closest("#user-menu-button") && !target.closest("#user-menu-dropdown")) {
-        setShowUserMenu(false)
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [])
+  fetch("/api/mensagens")
+    .then((res) => res.json())
+    .then((data) => {
+      setMessage1(data.mensagem1 ?? "")
+      setMessage2(data.mensagem2 ?? "")
+      setMessage3(data.mensagem3 ?? "")
+      setMessageDireta(data.mensagemDireta ?? "")
+    })
+    .catch((error) => console.error("Erro ao carregar mensagens:", error))
+}, [router, session])
 
   const handleLogout = () => {
     localStorage.removeItem("onboarding_done")
@@ -176,6 +159,7 @@ export default function ConfiguracoesPage() {
           mensagem1: message1,
           mensagem2: message2,
           mensagem3: message3,
+          mensagemDireta: messageDireta,
         }),
       })
 
@@ -197,10 +181,10 @@ export default function ConfiguracoesPage() {
     return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
   }
 
-  const insertVariable = (variable: string, msgNum: 1 | 2 | 3) => {
-    const ref = msgNum === 1 ? textarea1Ref : msgNum === 2 ? textarea2Ref : textarea3Ref
-    const setter = msgNum === 1 ? setMessage1 : msgNum === 2 ? setMessage2 : setMessage3
-    const current = msgNum === 1 ? message1 : msgNum === 2 ? message2 : message3
+  const insertVariable = (variable: string, msgNum: 1 | 2 | 3 | "direta") => {
+    const ref = msgNum === 1 ? textarea1Ref : msgNum === 2 ? textarea2Ref : msgNum === 3 ? textarea3Ref : textareaDiretaRef
+    const setter = msgNum === 1 ? setMessage1 : msgNum === 2 ? setMessage2 : msgNum === 3 ? setMessage3 : setMessageDireta
+    const current = msgNum === 1 ? message1 : msgNum === 2 ? message2 : msgNum === 3 ? message3 : messageDireta
     const el = ref.current
     if (el) {
       const start = el.selectionStart ?? current.length
@@ -549,6 +533,43 @@ export default function ConfiguracoesPage() {
               <div className="mb-5">
                 <h2 className="text-base font-bold text-[#1E293B]">Modelos de mensagem</h2>
                 <p className="text-sm text-[#64748B]">Edite os textos usados em cada tentativa de contato. As mesmas mensagens da tela de Central de Envios.</p>
+              </div>
+
+              <div className="mb-5 p-4 bg-[#F0FDF4] border border-[#BBF7D0] rounded-xl flex gap-4 items-start">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#22C55E]/20 shrink-0 mt-0.5">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="#16A34A">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                    <path d="M12 0C5.373 0 0 5.373 0 12c0 2.125.554 4.122 1.523 5.855L.057 23.428a.75.75 0 0 0 .916.916l5.573-1.466A11.943 11.943 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.907 0-3.696-.534-5.218-1.457l-.374-.223-3.879 1.021 1.021-3.879-.223-.374A9.944 9.944 0 0 1 2 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/>
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-sm font-semibold text-[#15803D]">Mensagem direta — aba Pacientes</p>
+                    <span className="text-xs bg-[#DCFCE7] text-[#15803D] px-2 py-0.5 rounded-full font-medium">Botão WhatsApp</span>
+                  </div>
+                  <p className="text-xs text-[#64748B] mb-3">Enviada quando a recepcionista clica no ícone do WhatsApp direto na lista de pacientes, fora da fila de automação.</p>
+                  <Textarea
+                    ref={textareaDiretaRef}
+                    value={messageDireta}
+                    onChange={(e) => setMessageDireta(e.target.value.slice(0, 500))}
+                    rows={3}
+                    className="text-sm border-[#BBF7D0] bg-white resize-none focus-visible:ring-2 focus-visible:ring-[rgba(22,163,74,0.15)] focus-visible:border-[#16A34A]"
+                  />
+                  <div className="flex items-center justify-between mt-2">
+                    <div className="flex gap-1.5">
+                      {["[nome]", "[clinica]"].map((v) => (
+                        <button
+                          key={v}
+                          onClick={() => insertVariable(v, "direta")}
+                          className="text-xs bg-[#DCFCE7] text-[#15803D] px-2 py-0.5 rounded font-mono hover:bg-[#BBF7D0] transition-colors"
+                        >
+                          {v}
+                        </button>
+                      ))}
+                    </div>
+                    <span className="text-xs text-[#94A3B8]">{messageDireta.length}/500</span>
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-3 gap-4 mb-5">

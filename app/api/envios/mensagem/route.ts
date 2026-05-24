@@ -61,6 +61,8 @@ export async function GET(req: Request) {
     // {nome} → nome do paciente
     // {clinica} → nome da clínica
     mensagem = mensagem
+      .replace(/\[nome\]/g, paciente?.nome || "")
+      .replace(/\[clinica\]/g, clinica?.nome_clinica || "")
       .replace(/{nome}/g, paciente?.nome || "")
       .replace(/{clinica}/g, clinica?.nome_clinica || "")
 

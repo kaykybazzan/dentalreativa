@@ -41,11 +41,10 @@ export async function POST(req: Request) {
       )
 
     } else if (acao === "vai_marcar") {
-      // Atualiza ultimaTentativa para agora — some da fila por 7 dias
-      // Mantém status contatado
       await pool.query(
         `UPDATE "Paciente" SET
           "ultimaTentativa" = NOW(),
+          "vaiMarcar" = TRUE,
           "atualizadoEm" = NOW()
         WHERE id = $1 AND "clinicaId" = $2`,
         [pacienteId, clinicaId]
@@ -59,6 +58,7 @@ export async function POST(req: Request) {
           "ultimaConsulta" = NOW(),
           "tentativaAtual" = 0,
           "ultimaTentativa" = NULL,
+          "vaiMarcar" = FALSE,
           "atualizadoEm" = NOW()
         WHERE id = $1 AND "clinicaId" = $2`,
         [pacienteId, clinicaId]

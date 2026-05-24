@@ -49,6 +49,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts"
+import { gerarLinkWhatsApp, construirMensagem } from "@/lib/formatarTelefone"
 
 type Period = "7d" | "30d" | "90d" | "custom"
 
@@ -89,7 +90,7 @@ export default function ReportsPage() {
   const [showRecuperados, setShowRecuperados] = useState(true)
 
   // Message modal
-  const [messageModal, setMessageModal] = useState<{ open: boolean; patientName: string; daysSince: number } | null>(null)
+  const [messageModal, setMessageModal] = useState<{ open: boolean; patientName: string; daysSince: number; phone: string } | null>(null)
   const [messageText, setMessageText] = useState("")
 
         // useEffect 1 — dados iniciais + clínica
@@ -175,13 +176,21 @@ useEffect(() => {
     }
   }
 
-  const openMessageModal = (patientName: string, daysSince: number) => {
+  const openMessageModal = (patientName: string, daysSince: number, phone: string) => {
     const firstName = patientName.split(" ")[0]
     setMessageText(`Olá ${firstName}! Sentimos sua falta na clínica.\nJá faz ${daysSince} dias desde sua última consulta.\nPodemos agendar uma revisão para você?`)
-    setMessageModal({ open: true, patientName, daysSince })
+    setMessageModal({ open: true, patientName, daysSince, phone })
   }
 
   const handleSendWhatsApp = () => {
+    if (!messageModal) return
+    const mensagem = construirMensagem(messageText, messageModal.patientName, clinicName)
+    const link = gerarLinkWhatsApp(messageModal.phone, mensagem)
+    if (!link) {
+      alert(`Número inválido: ${messageModal.phone}`)
+      return
+    }
+    window.open(link, "_blank")
     setMessageModal(null)
     showToast("Mensagem aberta no WhatsApp!")
   }
@@ -500,10 +509,12 @@ useEffect(() => {
                   </p>
                   <p className="text-[13px] text-white/70 mt-1">nos últimos 30 dias</p>
                   <div className="mt-3 pt-3 border-t border-white/20 flex justify-between items-center">
-                    <p className="text-[12px] text-white/80 flex items-center gap-1.5">
-                      <Users className="h-3.5 w-3.5" />
-                      {carregando ? "..." : `${dados?.metricas?.totalRecuperados ?? 0} pacientes voltaram`}
-                    </p>
+                    <div className="flex flex-col gap-0.5">
+                      <p className="text-[12px] text-white/80 flex items-center gap-1.5">
+                        <Users className="h-3.5 w-3.5" />
+                        {carregando ? "..." : `${dados?.funil?.recuperados ?? 0} via contato · ${(dados?.metricas?.totalRecuperados ?? 0) - (dados?.funil?.recuperados ?? 0)} espontâneos`}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -549,8 +560,8 @@ useEffect(() => {
                 <div>
                   <p className="text-[11px] uppercase text-[#64748B] font-medium tracking-wide">Ticket médio recuperado</p>
                   <p className="text-[22px] font-bold text-[#1E293B] leading-tight mt-0.5">
-                    {dados?.metricas?.totalRecuperados > 0
-                      ? `R$ ${(dados.metricas.receitaRecuperada / dados.metricas.totalRecuperados).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
+                    {dados?.metricas?.totalContatados > 0
+                      ? `R$ ${(dados.metricas.receitaRecuperada / dados.metricas.totalContatados).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
                       : "—"}
                   </p>
                   <p className="text-[12px] text-[#64748B] mt-0.5">por paciente recuperado</p>
@@ -565,8 +576,8 @@ useEffect(() => {
                 <div>
                   <p className="text-[11px] uppercase text-[#64748B] font-medium tracking-wide">Tempo médio p/ retorno</p>
                   <p className="text-[22px] font-bold text-[#1E293B] leading-tight mt-0.5">
-                    {dados?.metricas?.totalRecuperados > 0
-                      ? `${Math.round((dados?.metricas?.totalEnvios ?? 0) / (dados?.metricas?.totalRecuperados ?? 1))} dias`
+                    {dados?.metricas?.tempoMedioRetorno > 0
+                      ? `${dados.metricas.tempoMedioRetorno} dias`
                       : "—"}
                   </p>
                   <p className="text-[12px] text-[#64748B] mt-0.5">do 1º contato até voltar</p>
@@ -629,7 +640,7 @@ useEffect(() => {
               </p>
               <p className="text-[12px] text-[#64748B] mt-1">taxa de sucesso</p>
               <p className="text-[12px] text-[#64748B] mt-2 mb-2">
-                {carregando ? "..." : `${dados?.metricas?.totalRecuperados ?? 0} de ${dados?.metricas?.totalContatados ?? 0} recuperados`}
+                {carregando ? "..." : `${dados?.funil?.recuperados ?? 0} de ${dados?.metricas?.totalContatados ?? 0} recuperados`}
               </p>
               <div className="w-full bg-[#E2E8F0] h-1 rounded-full overflow-hidden">
                 <div className="bg-[#10B981] h-full" style={{ width: carregando ? "0%" : dados?.metricas?.taxaSucesso ?? "0" }} />
@@ -929,27 +940,6 @@ useEffect(() => {
             )}
           </div>
 
-          {/* Export Buttons */}
-          <div className="flex items-center justify-center gap-4 pb-8">
-            <Button
-              onClick={() => handleExport("csv")}
-              disabled={exportando}
-              variant="outline"
-              className="border-[#0F3460] text-[#0F3460] hover:bg-[#F0F4FF] px-5 h-10"
-            >
-              {exportando ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Gerando...
-                </>
-              ) : (
-                <>
-                  <FileText className="h-4 w-4 mr-2" />
-                  Exportar dados em CSV
-                </>
-              )}
-            </Button>
-          </div>
         </main>
       </div>
 
