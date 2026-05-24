@@ -30,7 +30,10 @@ const authOptions: AuthOptions = {
         const user = result.rows[0]
         if (!user) return null
 
+        console.log("🔐 Tentando login para:", credentials.email)
+        console.log("🔐 Hash no banco:", user.senhaHash?.substring(0, 20))
         const senhaCorreta = await bcrypt.compare(credentials.password, user.senhaHash)
+        console.log("🔐 Senha correta:", senhaCorreta)
         if (!senhaCorreta) return null
 
         return {
