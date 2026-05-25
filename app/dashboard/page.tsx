@@ -317,7 +317,7 @@ export default function DashboardPage() {
       />
 
       {/* Main Area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Top Header */}
         <header className="h-16 bg-white border-b border-[#E2E8F0] flex items-center justify-between px-6">
           <div>
@@ -598,7 +598,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Metrics Cards */}
-          <div className="grid grid-cols-4 gap-4 mb-7">
+          <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-7">
             {/* Card 1 - Pacientes em risco */}
             <div className="bg-white rounded-xl border border-[#E2E8F0] p-6">
               <div className="flex items-start justify-between">

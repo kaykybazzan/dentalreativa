@@ -90,7 +90,7 @@ export default function LoginPage() {
 
       <div className="flex min-h-screen bg-background">
         {/* Left Side - Login Form */}
-        <div className="flex w-full flex-col justify-center px-6 py-12 lg:w-1/2 lg:px-16 xl:px-24">
+        <div className="flex w-full flex-col justify-center px-6 py-12 lg:w-[55%] lg:px-16 xl:w-1/2 xl:px-24">
           <div className="mx-auto w-full max-w-sm">
           {/* Logo */}
           <div className="mb-12 flex items-center gap-2">
@@ -203,7 +203,7 @@ export default function LoginPage() {
         </div>
 
         {/* Right Side - Value Panel */}
-        <div className="hidden lg:flex lg:w-1/2 bg-[#0F3460] p-12 xl:p-16 flex-col justify-center relative">
+        <div className="hidden lg:flex lg:w-[45%] xl:w-1/2 bg-[#0F3460] p-12 xl:p-16 flex-col justify-center relative overflow-hidden">
           <div className="max-w-lg">
           {/* Flat Modern Illustration */}
           <div className="mb-10">
@@ -241,7 +241,7 @@ export default function LoginPage() {
         </div>
 
         {/* Floating Card */}
-        <div className="absolute bottom-12 right-12 xl:bottom-16 xl:right-16 bg-card rounded-2xl p-5 shadow-md max-w-[240px]">
+        <div className="absolute bottom-12 right-8 xl:bottom-16 xl:right-12 bg-card rounded-2xl p-5 shadow-md max-w-[220px]">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-success/10">
               <DollarSign className="h-5 w-5 text-success" />

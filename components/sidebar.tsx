@@ -73,7 +73,7 @@ export function Sidebar({ activeNav, onNavChange, onLogout }: SidebarProps) {
 
   return (
     <>
-      <aside className="w-60 bg-[#0F3460] flex flex-col overflow-visible z-40 relative">
+      <aside className="w-52 xl:w-60 bg-[#0F3460] flex flex-col overflow-visible z-40 relative shrink-0">
 
         {/* Logo */}
         <div className="p-5 border-b border-white/10">
