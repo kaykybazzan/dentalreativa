@@ -33,6 +33,19 @@ export async function POST(req: Request) {
   try {
     const { nome, telefone, ultimaConsulta, valor_ticket, procedimento } = await req.json()
 
+    // Validar data futura
+    if (ultimaConsulta) {
+      const dataInformada = new Date(ultimaConsulta)
+      const hoje = new Date()
+      hoje.setHours(23, 59, 59, 999)
+      if (dataInformada > hoje) {
+        return Response.json(
+          { error: "A data da última consulta não pode ser posterior a hoje." },
+          { status: 400 }
+        )
+      }
+    }
+
     // Buscar clinica_id
     const clinicaResult = await pool.query(
       `SELECT c.id FROM "Clinica" c

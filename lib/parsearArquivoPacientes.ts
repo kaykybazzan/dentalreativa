@@ -8,6 +8,7 @@ export interface PacienteImportado {
   dadosIncompletos: boolean;
   ultimaConsulta: string | null;
   valorTicket: number | null;
+  dataFuturaRejeitada?: boolean;
 }
 
 // Converte data de qualquer formato para AAAA-MM-DD
@@ -107,6 +108,16 @@ function normalizarData(valor: any): string | null {
   }
 
   return null;
+}
+
+// Valida se a data não é futura — retorna null se for
+function validarDataNaoFutura(dataISO: string | null): string | null {
+  if (!dataISO) return null;
+  const data = new Date(dataISO);
+  const hoje = new Date();
+  hoje.setHours(23, 59, 59, 999);
+  if (data > hoje) return null; // data futura — ignora
+  return dataISO;
 }
 
 // Normaliza o nome das colunas para encontrar independente de maiúsculas/acentos
@@ -218,7 +229,7 @@ export async function parsearArquivoPacientes(
         linhaNormalizada["data_atendimento"] ||
         "";
 
-      const ultimaConsulta = normalizarData(dataRaw);
+      const ultimaConsulta = validarDataNaoFutura(normalizarData(dataRaw));
 
       // Buscar valor ticket — aceitar variações
       const valorRaw =
@@ -231,7 +242,19 @@ export async function parsearArquivoPacientes(
 
       const valorTicket = valorRaw ? parseFloat(String(valorRaw).replace(/[^\d.,]/g, "").replace(",", ".")) || null : null;
 
-      return { nome: String(nome).trim(), telefone, telefoneBruto, dadosIncompletos, ultimaConsulta, valorTicket };
+      // Verificar se a data original existia mas foi rejeitada por ser futura
+      const dataOriginal = normalizarData(dataRaw);
+      const dataFuturaRejeitada = dataOriginal !== null && ultimaConsulta === null;
+
+      return {
+        nome: String(nome).trim(),
+        telefone,
+        telefoneBruto,
+        dadosIncompletos: dadosIncompletos || dataFuturaRejeitada,
+        ultimaConsulta,
+        valorTicket,
+        dataFuturaRejeitada, // flag extra para o resumo
+      };
     });
 }
 

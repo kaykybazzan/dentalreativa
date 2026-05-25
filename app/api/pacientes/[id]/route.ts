@@ -13,6 +13,19 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const body = await req.json()
     const { telefone, ultimaConsulta, status } = body
 
+    // Validar data futura
+    if (ultimaConsulta) {
+      const dataInformada = new Date(ultimaConsulta)
+      const hoje = new Date()
+      hoje.setHours(23, 59, 59, 999)
+      if (dataInformada > hoje) {
+        return Response.json(
+          { error: "A data da última consulta não pode ser posterior a hoje." },
+          { status: 400 }
+        )
+      }
+    }
+
     // Montar query dinamicamente — só atualiza campos enviados
     const updates: string[] = []
     const values: any[] = []
