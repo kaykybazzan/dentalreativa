@@ -64,6 +64,10 @@ export default function ConfiguracoesPage() {
   const [message2, setMessage2] = useState("")
   const [message3, setMessage3] = useState("")
   const [messageDireta, setMessageDireta] = useState("")
+  const [diasRiscoMedio, setDiasRiscoMedio] = useState(180)
+  const [diasRiscoAlto, setDiasRiscoAlto] = useState(270)
+  const [diasRiscoCritico, setDiasRiscoCritico] = useState(365)
+  const [erroRisco, setErroRisco] = useState<string | null>(null)
 
   const textarea1Ref = useRef<HTMLTextAreaElement>(null)
   const textarea2Ref = useRef<HTMLTextAreaElement>(null)
@@ -100,6 +104,9 @@ export default function ConfiguracoesPage() {
       setMessage2(data.mensagem2 ?? "")
       setMessage3(data.mensagem3 ?? "")
       setMessageDireta(data.mensagemDireta ?? "")
+      setDiasRiscoMedio(data.diasRiscoMedio ?? 180)
+      setDiasRiscoAlto(data.diasRiscoAlto ?? 270)
+      setDiasRiscoCritico(data.diasRiscoCritico ?? 365)
     })
     .catch((error) => console.error("Erro ao carregar mensagens:", error))
 }, [router, session])
@@ -150,6 +157,20 @@ export default function ConfiguracoesPage() {
   }
 
   const handleSaveMensagens = async () => {
+    // Validar dias de risco antes de salvar
+    if (diasRiscoMedio < 30 || diasRiscoMedio > 720) {
+      setErroRisco("Risco médio deve ser entre 30 e 720 dias.")
+      return
+    }
+    if (diasRiscoAlto <= diasRiscoMedio) {
+      setErroRisco("Risco alto deve ser maior que risco médio.")
+      return
+    }
+    if (diasRiscoCritico <= diasRiscoAlto) {
+      setErroRisco("Risco crítico deve ser maior que risco alto.")
+      return
+    }
+    setErroRisco(null)
     setSavingMensagens(true)
     try {
       const res = await fetch("/api/mensagens", {
@@ -160,6 +181,9 @@ export default function ConfiguracoesPage() {
           mensagem2: message2,
           mensagem3: message3,
           mensagemDireta: messageDireta,
+          diasRiscoMedio,
+          diasRiscoAlto,
+          diasRiscoCritico,
         }),
       })
 
@@ -533,6 +557,57 @@ export default function ConfiguracoesPage() {
               <div className="mb-5">
                 <h2 className="text-base font-bold text-[#1E293B]">Modelos de mensagem</h2>
                 <p className="text-sm text-[#64748B]">Edite os textos usados em cada tentativa de contato. As mesmas mensagens da tela de Central de Envios.</p>
+              </div>
+
+              {/* Seção: Dias de risco */}
+              <div className="mb-5 p-4 bg-white border border-[#E2E8F0] rounded-xl">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-sm font-semibold text-[#1E293B]">⏱ Quando considerar paciente em risco</span>
+                </div>
+                <p className="text-xs text-[#64748B] mb-4">
+                  Defina após quantos dias sem consulta cada nível de risco é ativado. O nível médio define quando o paciente entra na fila de recontato.
+                </p>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-[#F59E0B] mb-1.5">🟡 Risco médio (dias)</label>
+                    <input
+                      type="number"
+                      min={30}
+                      max={720}
+                      value={diasRiscoMedio}
+                      onChange={(e) => { setDiasRiscoMedio(Number(e.target.value)); setErroRisco(null) }}
+                      className="w-full h-10 px-3 rounded-lg border border-[#E2E8F0] text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[rgba(15,52,96,0.12)] focus:border-[#0F3460]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[#F97316] mb-1.5">🟠 Risco alto (dias)</label>
+                    <input
+                      type="number"
+                      min={30}
+                      max={720}
+                      value={diasRiscoAlto}
+                      onChange={(e) => { setDiasRiscoAlto(Number(e.target.value)); setErroRisco(null) }}
+                      className="w-full h-10 px-3 rounded-lg border border-[#E2E8F0] text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[rgba(15,52,96,0.12)] focus:border-[#0F3460]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[#EF4444] mb-1.5">🔴 Risco crítico (dias)</label>
+                    <input
+                      type="number"
+                      min={30}
+                      max={720}
+                      value={diasRiscoCritico}
+                      onChange={(e) => { setDiasRiscoCritico(Number(e.target.value)); setErroRisco(null) }}
+                      className="w-full h-10 px-3 rounded-lg border border-[#E2E8F0] text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[rgba(15,52,96,0.12)] focus:border-[#0F3460]"
+                    />
+                  </div>
+                </div>
+                {erroRisco && (
+                  <p className="text-xs text-[#EF4444] mt-2">{erroRisco}</p>
+                )}
+                <p className="text-xs text-[#94A3B8] mt-3">
+                  Sugestões: clínica de rotina semestral 180/270/365 · ortodontia 45/90/180 · implantes 270/365/540
+                </p>
               </div>
 
               <div className="mb-5 p-4 bg-[#F0FDF4] border border-[#BBF7D0] rounded-xl flex gap-4 items-start">

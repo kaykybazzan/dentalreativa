@@ -24,12 +24,25 @@ export function calcularDiasSemConsulta(ultimaConsulta: string | Date): number {
   return diffDias;
 }
 
+// Configuração de risco da clínica — valores padrão usados se não vier do banco
+export interface ConfigRisco {
+  diasRiscoMedio: number
+  diasRiscoAlto: number
+  diasRiscoCritico: number
+}
+
+export const configRiscoPadrao: ConfigRisco = {
+  diasRiscoMedio: 180,
+  diasRiscoAlto: 270,
+  diasRiscoCritico: 365,
+}
+
 // Classifica o nível de risco baseado nos dias sem consulta
-export function classificarRisco(dias: number): NivelRisco {
-  if (dias >= 365) return "critico";  // 1 ano ou mais — urgente
-  if (dias >= 270) return "alto";     // 9 meses ou mais
-  if (dias >= 180) return "medio";    // 6 meses ou mais — padrão de recontato
-  return "ok";                         // menos de 6 meses — não precisa contato
+export function classificarRisco(dias: number, config: ConfigRisco = configRiscoPadrao): NivelRisco {
+  if (dias >= config.diasRiscoCritico) return "critico";
+  if (dias >= config.diasRiscoAlto)    return "alto";
+  if (dias >= config.diasRiscoMedio)   return "medio";
+  return "ok";
 }
 
 // Aplica risco a um array de pacientes
