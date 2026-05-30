@@ -12,6 +12,7 @@ import {
   LogOut,
   ChevronDown,
   X,
+  CalendarDays,
 } from "lucide-react"
 import Image from "next/image"
 
@@ -27,6 +28,7 @@ export function Sidebar({ activeNav, onNavChange, onLogout }: SidebarProps) {
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showProfileModal, setShowProfileModal] = useState(false)
   const [clinica, setClinica] = useState<{ nome: string; cidade?: string } | null>(null)
+  const [agendamentosHoje, setAgendamentosHoje] = useState(0)
 
   const userName = session?.user?.name || "Usuário"
   const clinicName = clinica?.nome || "Carregando..."
@@ -38,6 +40,11 @@ export function Sidebar({ activeNav, onNavChange, onLogout }: SidebarProps) {
       fetch("/api/clinica")
         .then((res) => res.json())
         .then((data) => setClinica(data))
+        .catch(() => {})
+
+      fetch("/api/agendamentos?contagem=true")
+        .then((res) => res.json())
+        .then((data) => setAgendamentosHoje(data.total || 0))
         .catch(() => {})
     }
   }, [session])
@@ -53,10 +60,11 @@ export function Sidebar({ activeNav, onNavChange, onLogout }: SidebarProps) {
   return () => document.removeEventListener("mousedown", handleClickOutside)
 }, [])
 
-  const navItems = [
+  const navItems: { id: string; label: string; icon: any; badge?: number }[] = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "patients", label: "Pacientes", icon: Users },
     { id: "automation", label: "Central de Envios", icon: Zap },
+    { id: "agenda", label: "Agenda", icon: CalendarDays, badge: agendamentosHoje },
     { id: "reports", label: "Relatórios", icon: BarChart3 },
     { id: "settings", label: "Configurações", icon: Settings },
   ]
@@ -65,6 +73,7 @@ export function Sidebar({ activeNav, onNavChange, onLogout }: SidebarProps) {
     onNavChange(id)
     if (id === "patients") router.push("/dashboard/pacientes")
     else if (id === "automation") router.push("/dashboard/automacao")
+    else if (id === "agenda") router.push("/dashboard/agenda")
     else if (id === "reports") router.push("/dashboard/relatorios")
     else if (id === "settings") router.push("/dashboard/configuracoes")
     else router.push("/dashboard")
@@ -100,7 +109,12 @@ export function Sidebar({ activeNav, onNavChange, onLogout }: SidebarProps) {
                     }`}
                   >
                     <Icon className="h-5 w-5" />
-                    {item.label}
+                    <span className="flex-1 text-left">{item.label}</span>
+                    {(item.badge || 0) > 0 && (
+                      <span className="bg-[#F59E0B] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                        {item.badge}
+                      </span>
+                    )}
                   </button>
                 </li>
               )

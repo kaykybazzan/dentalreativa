@@ -2,7 +2,10 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 import { pool } from "@/lib/db"
 
-export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function PUT(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.email) {
     return Response.json({ error: "Não autorizado" }, { status: 401 })
@@ -12,6 +15,18 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const { id } = await params
     const body = await req.json()
     const { telefone, ultimaConsulta, status } = body
+
+    // Buscar clinicaId para garantir tenant isolation
+    const clinicaResult = await pool.query(
+      `SELECT c.id FROM "Clinica" c
+       INNER JOIN "Usuario" u ON u."clinicaId" = c.id
+       WHERE u.email = $1`,
+      [session.user.email]
+    )
+    const clinicaId = clinicaResult.rows[0]?.id
+    if (!clinicaId) {
+      return Response.json({ error: "Clínica não encontrada" }, { status: 404 })
+    }
 
     // Validar data futura
     if (ultimaConsulta) {
@@ -26,13 +41,12 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       }
     }
 
-    // Montar query dinamicamente — só atualiza campos enviados
     const updates: string[] = []
     const values: any[] = []
     let paramIndex = 1
 
     if (telefone !== undefined) {
-      const telefoneLimpo = telefone.replace(/\D/g, "")
+      const telefoneLimpo = String(telefone).replace(/\D/g, "")
       updates.push(`telefone = $${paramIndex}`)
       values.push(telefoneLimpo)
       paramIndex++
@@ -40,17 +54,22 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     if (ultimaConsulta !== undefined) {
       updates.push(`"ultimaConsulta" = $${paramIndex}`)
-      values.push(ultimaConsulta)
+      values.push(ultimaConsulta || null)
       paramIndex++
     }
 
     if (status !== undefined) {
-      // Validar status permitidos
-      const statusPermitidos = ['ativo', 'em_contato', 'recuperado', 'sem_resposta', 'nao_contatar']
+      const statusPermitidos = [
+        "ativo",
+        "contatado",
+        "aguardando_resposta",
+        "recuperado",
+        "nao_contatar",
+      ]
       if (!statusPermitidos.includes(status)) {
         return Response.json({ error: "Status inválido" }, { status: 400 })
       }
-      updates.push(`status = $${paramIndex}`)
+      updates.push(`status = $${paramIndex}::"StatusPaciente"`)
       values.push(status)
       paramIndex++
     }
@@ -63,13 +82,17 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     if (body.valorUltimaConsulta !== undefined) {
       updates.push(`"valorUltimaConsulta" = $${paramIndex}`)
-      values.push(body.valorUltimaConsulta ? parseFloat(String(body.valorUltimaConsulta)) : null)
+      values.push(
+        body.valorUltimaConsulta !== null && body.valorUltimaConsulta !== ""
+          ? parseFloat(String(body.valorUltimaConsulta))
+          : null
+      )
       paramIndex++
     }
 
     if (body.procedimento !== undefined) {
       updates.push(`procedimento = $${paramIndex}`)
-      values.push(body.procedimento)
+      values.push(body.procedimento || null)
       paramIndex++
     }
 
@@ -77,16 +100,19 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       return Response.json({ error: "Nenhum campo para atualizar" }, { status: 400 })
     }
 
-    // Se ultimaConsulta está sendo preenchida agora, reseta dadosIncompletos
-    if (ultimaConsulta !== undefined && ultimaConsulta !== null && ultimaConsulta !== '') {
+    // Reseta dadosIncompletos se ultimaConsulta foi preenchida
+    if (ultimaConsulta) {
       updates.push(`"dadosIncompletos" = false`)
-    } else {
-      updates.push(`"dadosIncompletos" = CASE WHEN telefone != '' AND "ultimaConsulta" IS NOT NULL THEN false ELSE "dadosIncompletos" END`)
     }
-    
-    values.push(id)
+
+    updates.push(`"atualizadoEm" = NOW()`)
+
+    values.push(id, clinicaId)
+
     await pool.query(
-      `UPDATE "Paciente" SET ${updates.join(", ")} WHERE id = $${paramIndex}`,
+      `UPDATE "Paciente"
+       SET ${updates.join(", ")}
+       WHERE id = $${paramIndex} AND "clinicaId" = $${paramIndex + 1}`,
       values
     )
 
@@ -97,7 +123,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   }
 }
 
-export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.email) {
     return Response.json({ error: "Não autorizado" }, { status: 401 })
@@ -106,16 +135,42 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   try {
     const { id } = await params
 
-    // Deletar ContactAttempts primeiro (foreign key)
+    const clinicaResult = await pool.query(
+      `SELECT c.id FROM "Clinica" c
+       INNER JOIN "Usuario" u ON u."clinicaId" = c.id
+       WHERE u.email = $1`,
+      [session.user.email]
+    )
+    const clinicaId = clinicaResult.rows[0]?.id
+    if (!clinicaId) {
+      return Response.json({ error: "Clínica não encontrada" }, { status: 404 })
+    }
+
+    // Verificar que o paciente pertence à clínica (tenant guard)
+    const pacienteCheck = await pool.query(
+      `SELECT id FROM "Paciente" WHERE id = $1 AND "clinicaId" = $2`,
+      [id, clinicaId]
+    )
+    if (pacienteCheck.rows.length === 0) {
+      return Response.json({ error: "Paciente não encontrado" }, { status: 404 })
+    }
+
+    // Deletar agendamentos do paciente primeiro
     await pool.query(
-      `DELETE FROM "ContactAttempt" WHERE "pacienteId" = $1`,
-      [id]
+      `DELETE FROM "Agendamento" WHERE "pacienteId" = $1 AND "clinicaId" = $2`,
+      [id, clinicaId]
+    )
+
+    // Deletar ContactAttempts
+    await pool.query(
+      `DELETE FROM "ContactAttempt" WHERE "pacienteId" = $1 AND "clinicaId" = $2`,
+      [id, clinicaId]
     )
 
     // Deletar paciente
     await pool.query(
-      `DELETE FROM "Paciente" WHERE id = $1`,
-      [id]
+      `DELETE FROM "Paciente" WHERE id = $1 AND "clinicaId" = $2`,
+      [id, clinicaId]
     )
 
     return Response.json({ success: true })

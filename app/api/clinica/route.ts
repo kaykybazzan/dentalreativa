@@ -37,7 +37,7 @@ export async function PUT(req: Request) {
        SET nome = $1, telefone = $2, cidade = $3, "ticketMedio" = $4
        FROM "Usuario" u
        WHERE u."clinicaId" = c.id AND u.email = $5`,
-      [nome, telefone, cidade, ticketMedio, session.user.email]
+      [nome, telefone, cidade, ticketMedio ? parseFloat(String(ticketMedio)) : null, session.user.email]
     )
 
     return Response.json({ success: true })

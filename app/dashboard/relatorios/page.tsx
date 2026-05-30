@@ -3,13 +3,6 @@
 import { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import {
-  LayoutDashboard,
-  Users,
-  Zap,
-  BarChart3,
-  Settings,
-  LogOut,
-  ChevronDown,
   DollarSign,
   AlertTriangle,
   MessageSquare,
@@ -18,19 +11,16 @@ import {
   Star,
   Lightbulb,
   Calendar,
-  Download,
-  FileText,
   ChevronRight,
   Check,
-  Info,
-  Loader2,
   Reply,
+  Users,
   X
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { DateRangePicker } from "@/components/date-range-picker"
-import Image from "next/image"
+import { Sidebar } from "@/components/sidebar"
 import {
   Dialog,
   DialogContent,
@@ -53,24 +43,17 @@ import { gerarLinkWhatsApp, construirMensagem } from "@/lib/formatarTelefone"
 
 type Period = "7d" | "30d" | "90d" | "custom"
 
-
-
-const navItems = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { id: "patients", label: "Pacientes", icon: Users },
-  { id: "automation", label: "Central de Envios", icon: Zap },
-  { id: "reports", label: "Relatórios", icon: BarChart3 },
-  { id: "settings", label: "Configurações", icon: Settings },
-]
-
 export default function ReportsPage() {
   const router = useRouter()
-  const [clinicName, setClinicName] = useState("Clínica Sorriso")
-  const [clinicCity, setClinicCity] = useState("São Paulo - SP")
-  const [userName, setUserName] = useState("Kayky")
   const [activeNav, setActiveNav] = useState("reports")
-  const [showUserMenu, setShowUserMenu] = useState(false)
-  const [showProfileModal, setShowProfileModal] = useState(false)
+  const [clinicName, setClinicName] = useState("")
+
+  useEffect(() => {
+    fetch("/api/clinica")
+      .then((res) => res.json())
+      .then((data) => { if (data?.nome) setClinicName(data.nome) })
+      .catch(() => {})
+  }, [])
   const [period, setPeriod] = useState<Period>("30d")
   const [exportSpinner, setExportSpinner] = useState<"pdf" | "csv" | null>(null)
   const [toast, setToast] = useState<{ show: boolean; message: string }>({ show: false, message: "" })
@@ -93,30 +76,7 @@ export default function ReportsPage() {
   const [messageModal, setMessageModal] = useState<{ open: boolean; patientName: string; daysSince: number; phone: string } | null>(null)
   const [messageText, setMessageText] = useState("")
 
-        // useEffect 1 — dados iniciais + clínica
-useEffect(() => {
-  setActiveNav("reports")
 
-  const savedSignupData = localStorage.getItem("signup_data")
-  if (savedSignupData) {
-    try {
-      const parsed = JSON.parse(savedSignupData)
-      if (parsed.fullName) setUserName(parsed.fullName.split(" ")[0])
-      if (parsed.clinicName) setClinicName(parsed.clinicName)
-      if (parsed.city) setClinicCity(parsed.city)
-    } catch {
-      // manter defaults
-    }
-  }
-
-  fetch("/api/clinica")
-    .then((res) => res.json())
-    .then((data) => {
-      if (data?.nome) setClinicName(data.nome)
-      if (data?.cidade) setClinicCity(data.cidade)
-    })
-    .catch(() => {})
-}, [router])
 
 // useEffect 2 — relatórios (separado, sem nenhum outro dentro)
 useEffect(() => {
@@ -135,9 +95,6 @@ useEffect(() => {
 }, [period, customPeriodDates])
 
   const handleLogout = () => {
-    localStorage.removeItem("onboarding_done")
-    localStorage.removeItem("onboarding_step")
-    localStorage.removeItem("signup_data")
     router.push("/")
   }
 
@@ -240,204 +197,14 @@ useEffect(() => {
     }
   }, [showCustomPicker])
 
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement
-      if (!target.closest("#user-menu-button") && !target.closest("#user-menu-dropdown")) {
-        setShowUserMenu(false)
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [])
-
   return (
     <div className="flex h-screen bg-[#F8FAFC]">
-      {/* Left Sidebar */}
-      <aside className="w-60 bg-[#0F3460] flex flex-col shrink-0">
-        <div className="p-5 border-b border-white/10">
-          <div className="flex items-center gap-2">
-            <Image src="/logo.png" alt="DentalReativa" width={40} height={40} className="object-contain brightness-0 invert" />
-            <span className="text-lg font-semibold text-white">DentalReativa</span>
-          </div>
-        </div>
 
-        <nav className="flex-1 p-3">
-          <ul className="space-y-1">
-            {navItems.map((item) => {
-              const Icon = item.icon
-              const isActive = activeNav === item.id
-              return (
-                <li key={item.id}>
-                  <button
-                    onClick={() => {
-                      if (item.id === "dashboard") router.push("/dashboard")
-                      else if (item.id === "patients") router.push("/dashboard/pacientes")
-                      else if (item.id === "automation") router.push("/dashboard/automacao")
-                      else if (item.id === "settings") router.push("/dashboard/configuracoes")
-                    }}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-colors ${
-                      isActive
-                        ? "bg-white/10 text-white border-l-[3px] border-white"
-                        : "text-white/70 hover:bg-white/5 hover:text-white border-l-[3px] border-transparent"
-                    }`}
-                  >
-                    <Icon className="h-5 w-5" />
-                    {item.label}
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
-        </nav>
-
-        <div className="p-3 border-t border-white/10">
-          
-          {/* Bloco da clínica */}
-          <div className="flex items-center justify-between px-3 py-2.5 mb-1">
-            <div className="text-left">
-              <p className="text-sm font-medium text-white">{clinicName}</p>
-              <p className="text-xs text-white/60">{clinicCity}</p>
-            </div>
-          </div>
-
-          {/* Bloco do usuário com dropdown */}
-          <div className="relative">
-            <button
-              id="user-menu-button"
-              onClick={() => setShowUserMenu(!showUserMenu)}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/5 transition-colors"
-            >
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white text-sm font-medium shrink-0">
-                {userName[0].toUpperCase()}
-              </div>
-              <div className="flex-1 min-w-0 text-left">
-                <p className="text-sm font-medium text-white truncate">{userName}</p>
-                <p className="text-xs text-white/60">Administrador</p>
-              </div>
-              <ChevronDown className={`h-4 w-4 text-white/60 transition-transform ${showUserMenu ? "rotate-180" : ""}`} />
-            </button>
-
-            {/* Dropdown menu */}
-            {showUserMenu && (
-              <div
-                id="user-menu-dropdown"
-                className="absolute bottom-full left-0 right-0 mb-1 bg-white rounded-xl border border-[#E2E8F0] shadow-lg overflow-hidden z-50"
-              >
-                {/* Cabeçalho do dropdown */}
-                <div className="px-4 py-3 border-b border-[#E2E8F0]">
-                  <p className="text-xs font-semibold text-[#1E293B] truncate">{userName}</p>
-                  <p className="text-xs text-[#64748B] truncate">{clinicName}</p>
-                </div>
-
-                {/* Opção: Meu perfil */}
-                <button
-                  onClick={() => {
-                    setShowUserMenu(false)
-                    setShowProfileModal(true)
-                  }}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-[#1E293B] hover:bg-[#F8FAFC] transition-colors text-left"
-                >
-                  <svg className="h-4 w-4 text-[#64748B]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                    <circle cx="12" cy="7" r="4"/>
-                  </svg>
-                  Meu perfil
-                </button>
-
-                {/* Opção: Configurações da clínica */}
-                <button
-                  onClick={() => {
-                    setShowUserMenu(false)
-                    router.push("/dashboard/configuracoes")
-                  }}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-[#1E293B] hover:bg-[#F8FAFC] transition-colors text-left"
-                >
-                  <svg className="h-4 w-4 text-[#64748B]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="12" cy="12" r="3"/>
-                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-                  </svg>
-                  Configurações da clínica
-                </button>
-
-                {/* Divisor */}
-                <div className="border-t border-[#E2E8F0]" />
-
-                {/* Opção: Sair */}
-                <button
-                  onClick={() => {
-                    setShowUserMenu(false)
-                    handleLogout()
-                  }}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-[#EF4444] hover:bg-[#FEF2F2] transition-colors text-left"
-                >
-                  <LogOut className="h-4 w-4" />
-                  Sair
-                </button>
-
-              </div>
-            )}
-          </div>
-
-        </div>
-      </aside>
-
-      {/* Profile Modal */}
-      {showProfileModal && (
-        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-base font-bold text-[#1E293B]">Meu perfil</h2>
-              <button
-                onClick={() => setShowProfileModal(false)}
-                className="text-[#64748B] hover:text-[#1E293B]"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="flex flex-col items-center mb-6">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#0F3460] text-white text-2xl font-bold mb-3">
-                {userName[0].toUpperCase()}
-              </div>
-              <p className="text-base font-semibold text-[#1E293B]">{userName}</p>
-              <p className="text-sm text-[#64748B]">Administrador</p>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-[#64748B] mb-1">
-                  Nome completo
-                </label>
-                <input
-                  type="text"
-                  value={userName}
-                  readOnly
-                  className="w-full h-10 px-3 rounded-lg border border-[#E2E8F0] text-sm text-[#1E293B] bg-[#F8FAFC]"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-[#64748B] mb-1">
-                  Clínica
-                </label>
-                <input
-                  type="text"
-                  value={clinicName}
-                  readOnly
-                  className="w-full h-10 px-3 rounded-lg border border-[#E2E8F0] text-sm text-[#1E293B] bg-[#F8FAFC]"
-                />
-              </div>
-            </div>
-
-            <button
-              onClick={() => setShowProfileModal(false)}
-              className="w-full h-10 mt-6 rounded-lg bg-[#0F3460] text-white text-sm font-medium hover:bg-[#0A2540] transition-colors"
-            >
-              Fechar
-            </button>
-          </div>
-        </div>
-      )}
+      <Sidebar
+        activeNav={activeNav}
+        onNavChange={setActiveNav}
+        onLogout={handleLogout}
+      />
 
       {/* Main Area */}
       <div className="flex-1 flex flex-col overflow-hidden">

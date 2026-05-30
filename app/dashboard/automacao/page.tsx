@@ -4,24 +4,16 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import {
-  LayoutDashboard,
-  Users,
-  Zap,
-  BarChart3,
-  Settings,
-  LogOut,
-  ChevronDown,
   AlertTriangle,
   Search,
   CheckCircle,
-  Calendar,
   SlidersHorizontal,
   X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import Image from "next/image"
+import { Sidebar } from "@/components/sidebar"
+import { ModalVaiMarcar } from "@/components/modal-vai-marcar"
 import { gerarLinkWhatsApp, formatarTelefoneExibicao, validarTelefone } from "@/lib/formatarTelefone"
 
 interface PacienteFila {
@@ -33,7 +25,6 @@ interface PacienteFila {
   nivelRisco: string
   valorTicket: number
   status: string
-  // UI properties
   avatar: string
   avatarColor: string
   name: string
@@ -49,60 +40,38 @@ interface PacienteFila {
   estimatedValue: number
 }
 
-const navItems = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { id: "patients", label: "Pacientes", icon: Users },
-  { id: "automation", label: "Central de Envios", icon: Zap },
-  { id: "reports", label: "Relatórios", icon: BarChart3 },
-  { id: "settings", label: "Configurações", icon: Settings },
-]
-
-
-
 export default function AutomacaoPage() {
   const router = useRouter()
   const { data: session } = useSession()
-  const [clinicName, setClinicName] = useState("")
-  const [clinicCity, setClinicCity] = useState("")
-  const [userName, setUserName] = useState(session?.user?.name?.split(" ")[0] ?? "")
   const [activeNav, setActiveNav] = useState("automation")
-  const [showUserMenu, setShowUserMenu] = useState(false)
-  const [showProfileModal, setShowProfileModal] = useState(false)
 
-  // Dados reais da fila
   const [fila, setFila] = useState<PacienteFila[]>([])
   const [carregando, setCarregando] = useState(true)
-  // Controle de quais botões estão desabilitados após clique
   const [enviando, setEnviando] = useState<Record<string, boolean>>({})
-  // Controle de quais pacientes já foram enviados nessa sessão
   const [enviados, setEnviados] = useState<Record<string, boolean>>({})
-  // Controle de quais pacientes estão aguardando confirmação de envio
   const [aguardandoConfirmacao, setAguardandoConfirmacao] = useState<Record<string, boolean>>({})
-  // Mapeamento de número de tentativas por paciente
   const [tentativas, setTentativas] = useState<Record<string, number>>({})
   const [menuAcoes, setMenuAcoes] = useState<Record<string, boolean>>({})
 
-  // Mensagens (somente leitura)
+  // Modal Vai Marcar
+  const [modalVaiMarcarAberto, setModalVaiMarcarAberto] = useState(false)
+  const [pacienteModalVaiMarcar, setPacienteModalVaiMarcar] = useState<PacienteFila | null>(null)
+
   const [message1] = useState("Olá [nome]! Já faz um tempinho desde sua última consulta na [clinica]. Que tal agendar uma revisão?")
   const [message2] = useState("[nome], temos horários disponíveis essa semana na [clinica]. Posso reservar um para você?")
   const [message3] = useState("Oi [nome]! Queremos ter certeza de que está tudo bem. Podemos ajudar com algo? Entre em contato com a [clinica].")
 
-  // Filtros rápidos
   const [sortBy, setSortBy] = useState<"urgency" | "value">("urgency")
   const [showOnlyUnsent, setShowOnlyUnsent] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
-
-  // Painel de filtros avançados
   const [showFilterPanel, setShowFilterPanel] = useState(false)
 
-  // Filtros internos (dentro do painel — ainda não aplicados)
   const [filterAttempt, setFilterAttempt] = useState<"all" | "1" | "2" | "3">("all")
   const [filterProcedures, setFilterProcedures] = useState<string[]>([])
   const [filterMinValue, setFilterMinValue] = useState("")
   const [filterMaxValue, setFilterMaxValue] = useState("")
   const [filterMinDays, setFilterMinDays] = useState("")
 
-  // Filtros ativos (aplicados ao clicar em "Aplicar")
   const [activeFilterAttempt, setActiveFilterAttempt] = useState<"all" | "1" | "2" | "3">("all")
   const [activeFilterProcedures, setActiveFilterProcedures] = useState<string[]>([])
   const [activeFilterMinValue, setActiveFilterMinValue] = useState("")
@@ -122,30 +91,17 @@ export default function AutomacaoPage() {
 
   const filteredAndSortedPatients = fila
     .filter((p) => {
-      // Filtro: busca por nome ou telefone
       if (searchQuery.trim() !== "") {
         const q = searchQuery.toLowerCase()
         const nomeMatch = p.nome?.toLowerCase().includes(q)
         const telefoneMatch = p.telefone?.includes(q)
         if (!nomeMatch && !telefoneMatch) return false
       }
-
-      
-      // Filtro: tentativa
       if (activeFilterAttempt !== "all" && p.attempt !== activeFilterAttempt) return false
-
-      // Filtro: procedimento
       if (activeFilterProcedures.length > 0 && !activeFilterProcedures.includes(p.procedure)) return false
-
-      // Filtro: valor mínimo
       if (activeFilterMinValue !== "" && p.valorTicket < parseFloat(activeFilterMinValue)) return false
-
-      // Filtro: valor máximo
       if (activeFilterMaxValue !== "" && p.valorTicket > parseFloat(activeFilterMaxValue)) return false
-
-      // Filtro: dias mínimos sem consulta
       if (activeFilterMinDays !== "" && p.diasSemConsulta < parseInt(activeFilterMinDays)) return false
-
       return true
     })
     .sort((a, b) => {
@@ -156,47 +112,11 @@ export default function AutomacaoPage() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const clinicaId = (session?.user as any)?.clinicaId
-      const key = `onboarding_done_${clinicaId}`
-      if (clinicaId && localStorage.getItem(key) !== "true") {
-        localStorage.setItem(key, "true")
-      }
-      setActiveNav("automation")
-
-      // Use session data for clinic info
-      if (session?.user?.name) setUserName(session.user.name?.split(" ")?.[0] ?? session.user.name)
-      if (session?.user?.clinicaNome) setClinicName(session.user.clinicaNome)
-
-      // Buscar nome real da clínica do banco — sempre sobrescreve o localStorage
-      fetch("/api/clinica")
-        .then((res) => res.json())
-        .then((data) => {
-          if (data?.nome) setClinicName(data.nome)
-          if (data?.cidade) setClinicCity(data.cidade)
-        })
-        .catch(() => {
-          // manter o valor do localStorage como fallback
-        })
-
       carregarFila()
     }
   }, [router, session])
 
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement
-      if (!target.closest("#user-menu-button") && !target.closest("#user-menu-dropdown")) {
-        setShowUserMenu(false)
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [])
-
   const handleLogout = () => {
-    localStorage.removeItem("onboarding_done")
-    localStorage.removeItem("onboarding_step")
-    localStorage.removeItem("signup_data")
     router.push("/")
   }
 
@@ -206,23 +126,21 @@ export default function AutomacaoPage() {
       const response = await fetch("/api/pacientes/fila")
       if (response.ok) {
         const data = await response.json()
-        // Map database fields to UI fields
         const mappedFila = await Promise.all(data.map(async (p: any) => {
           const avatarColors = ["bg-[#3B82F6]", "bg-[#10B981]", "bg-[#8B5CF6]", "bg-[#F59E0B]", "bg-[#EF4444]"]
           const avatarColor = avatarColors[Math.floor(Math.random() * avatarColors.length)]
           const initials = p.nome?.split(" ")?.map((n: string) => n?.[0])?.join("")?.slice(0, 2)?.toUpperCase() ?? ""
           const ultimaConsulta = p.ultimaConsulta ? new Date(p.ultimaConsulta) : null
           const lastVisit = ultimaConsulta ? ultimaConsulta.toLocaleDateString?.('pt-BR') ?? '' : ''
-          
-          // Fetch attempt number for this patient
+
           const tentativaRes = await fetch(`/api/envios/mensagem?pacienteId=${p.id}`)
           const { tentativa } = await tentativaRes.json()
-          
+
           const attemptNum = tentativa || 1
           const attemptLabel = `${attemptNum}ª`
           const attemptBg = attemptNum === 1 ? "bg-[#EFF6FF]" : attemptNum === 2 ? "bg-[#FFFBEB]" : "bg-[#FEF2F2]"
           const attemptText = attemptNum === 1 ? "text-[#1D4ED8]" : attemptNum === 2 ? "text-[#92400E]" : "text-[#DC2626]"
-          
+
           return {
             ...p,
             avatar: initials,
@@ -242,11 +160,8 @@ export default function AutomacaoPage() {
         }))
         setFila(mappedFila)
 
-        // RESTAURAR estado de enviados com base no banco
         const enviadosIniciais: Record<string, boolean> = {}
         mappedFila.forEach((p) => {
-          // Paciente já foi contatado se: tem mais de 1 tentativa já registrada,
-          // ou se o status no banco é 'em_contato' ou 'sem_resposta'
           const jaFoiContatado =
             (p.attempt && parseInt(p.attempt) > 1) ||
             p.status === "em_contato" ||
@@ -265,34 +180,25 @@ export default function AutomacaoPage() {
   }
 
   const handleEnviarWhatsApp = async (paciente: PacienteFila) => {
-    // Desabilitar botão imediatamente para evitar duplo clique
     setEnviando((prev) => ({ ...prev, [paciente.id]: true }))
 
     try {
-      // 1. Buscar a mensagem correta para esse paciente
       const msgRes = await fetch(`/api/envios/mensagem?pacienteId=${paciente.id}`)
       const { mensagem, tentativa } = await msgRes.json()
 
-      // 2. Gerar o link do WhatsApp com normalização do 9º dígito
       const linkWhatsApp = gerarLinkWhatsApp(paciente.telefone, mensagem)
 
       if (!linkWhatsApp) {
-        // Telefone inválido — mostrar alerta para a recepcionista
         alert(`Número inválido para ${paciente.nome}: ${paciente.telefone}`)
         setEnviando((prev) => ({ ...prev, [paciente.id]: false }))
         return
       }
 
-      // 3. Abrir o WhatsApp em nova aba
       window.open(linkWhatsApp, "_blank")
-
-      // Mostrar barra de confirmação em vez de marcar imediatamente
       setAguardandoConfirmacao((prev) => ({ ...prev, [paciente.id]: true }))
       setEnviando((prev) => ({ ...prev, [paciente.id]: false }))
-
     } catch (error) {
       console.error("Erro ao enviar:", error)
-      // Reabilitar botão em caso de erro
       setEnviando((prev) => ({ ...prev, [paciente.id]: false }))
     }
   }
@@ -316,53 +222,68 @@ export default function AutomacaoPage() {
   }
 
   const handlePacienteVoltou = async (paciente: PacienteFila) => {
-  const valorStr = window.prompt(
-    `Qual o valor da consulta de ${paciente.name}?\n(deixe em branco para usar R$ ${paciente.valorTicket.toFixed(2).replace(".", ",")})`
-  )
-  // Se clicou em Cancelar
-  if (valorStr === null) return
+    const valorStr = window.prompt(
+      `Qual o valor da consulta de ${paciente.name}?\n(deixe em branco para usar R$ ${paciente.valorTicket.toFixed(2).replace(".", ",")})`
+    )
+    if (valorStr === null) return
 
-  const valor = valorStr.trim() === ""
-    ? paciente.valorTicket
-    : parseFloat(valorStr.replace(",", "."))
+    const valor = valorStr.trim() === ""
+      ? paciente.valorTicket
+      : parseFloat(valorStr.replace(",", "."))
 
-  if (isNaN(valor)) {
-    alert("Valor inválido. Tente novamente.")
-    return
-  }
+    if (isNaN(valor)) {
+      alert("Valor inválido. Tente novamente.")
+      return
+    }
 
-  try {
-    await fetch("/api/envios/recuperado", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        pacienteId: paciente.id,
-        valorRecuperado: valor,
-      }),
-    })
-    setFila((prev) => prev.filter((p) => p.id !== paciente.id))
-    setEnviados((prev) => {
-      const novo = { ...prev }
-      delete novo[paciente.id]
-      return novo
-    })
-  } catch (error) {
-    console.error("Erro ao marcar como recuperado:", error)
-  }
-}
-
-  const handleVaiMarcar = async (paciente: PacienteFila) => {
-    setMenuAcoes((prev) => ({ ...prev, [paciente.id]: false }))
     try {
       await fetch("/api/envios/recuperado", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pacienteId: paciente.id, acao: "vai_marcar" }),
+        body: JSON.stringify({ pacienteId: paciente.id, valorRecuperado: valor }),
       })
-      // Some da fila por 7 dias — remove da view atual
       setFila((prev) => prev.filter((p) => p.id !== paciente.id))
+      setEnviados((prev) => {
+        const novo = { ...prev }
+        delete novo[paciente.id]
+        return novo
+      })
+    } catch (error) {
+      console.error("Erro ao marcar como recuperado:", error)
+    }
+  }
+
+  const handleVaiMarcar = (paciente: PacienteFila) => {
+    setMenuAcoes((prev) => ({ ...prev, [paciente.id]: false }))
+    setPacienteModalVaiMarcar(paciente)
+    setModalVaiMarcarAberto(true)
+  }
+
+  const handleConfirmarVaiMarcar = async (dados: {
+    pacienteId: string | number
+    dataConsulta?: string
+    horario?: string
+    procedimento?: string
+  }) => {
+    try {
+      await fetch("/api/envios/recuperado", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pacienteId: dados.pacienteId,
+          acao: "vai_marcar",
+          dataConsulta: dados.dataConsulta,
+          horario: dados.horario,
+          procedimento: dados.procedimento,
+        }),
+      })
+
+      setFila((prev) => prev.filter((p) => p.id !== dados.pacienteId))
+      setModalVaiMarcarAberto(false)
+      setPacienteModalVaiMarcar(null)
     } catch (error) {
       console.error(error)
+      throw error
     }
   }
 
@@ -395,20 +316,12 @@ export default function AutomacaoPage() {
     }
   }
 
-  const handleNavigation = (navId: string) => {
-    setActiveNav(navId)
-    if (navId === "dashboard") router.push("/dashboard")
-    else if (navId === "patients") router.push("/dashboard/pacientes")
-    else if (navId === "automation") router.push("/dashboard/automacao")
-    else if (navId === "reports") router.push("/dashboard/relatorios")
-    else if (navId === "settings") router.push("/dashboard/configuracoes")
-  }
-
-  const getDaysSinceColor = (daysSince: number) => {
-    if (daysSince > 180) return "text-[#EF4444]"
-    if (daysSince >= 120) return "text-[#F59E0B]"
-    return "text-[#64748B]"
-  }
+  const getDaysSinceColor = (nivelRisco: string) => {
+  if (nivelRisco === "critico") return "text-[#EF4444]"
+  if (nivelRisco === "alto")    return "text-[#F97316]"
+  if (nivelRisco === "medio")   return "text-[#F59E0B]"
+  return "text-[#64748B]"
+}
 
   const handleApplyFilters = () => {
     setActiveFilterAttempt(filterAttempt)
@@ -442,193 +355,10 @@ export default function AutomacaoPage() {
 
   return (
     <div className="flex h-screen bg-[#F8FAFC]">
+      <Sidebar activeNav={activeNav} onNavChange={setActiveNav} onLogout={handleLogout} />
 
-      {/* Sidebar */}
-      <aside className="w-60 bg-[#0F3460] flex flex-col shrink-0">
-        <div className="p-5 border-b border-white/10">
-          <div className="flex items-center gap-2">
-            <Image src="/logo.png" alt="DentalReativa" width={40} height={40} className="object-contain brightness-0 invert" />
-            <span className="text-lg font-semibold text-white">DentalReativa</span>
-          </div>
-        </div>
-
-        <nav className="flex-1 p-3">
-          <ul className="space-y-1">
-            {navItems.map((item) => {
-              const Icon = item.icon
-              const isActive = activeNav === item.id
-              return (
-                <li key={item.id}>
-                  <button
-                    onClick={() => handleNavigation(item.id)}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-none text-sm font-medium transition-colors ${
-                      isActive
-                        ? "bg-white/10 text-white border-l-[3px] border-white"
-                        : "text-white/70 hover:bg-white/5 hover:text-white border-l-[3px] border-transparent"
-                    }`}
-                  >
-                    <Icon className="h-5 w-5" />
-                    {item.label}
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
-        </nav>
-
-        <div className="p-3 border-t border-white/10">
-          
-          {/* Bloco da clínica */}
-          <div className="flex items-center justify-between px-3 py-2.5 mb-1">
-            <div className="text-left">
-              <p className="text-sm font-medium text-white">{clinicName}</p>
-              <p className="text-xs text-white/60">{clinicCity}</p>
-            </div>
-          </div>
-
-          {/* Bloco do usuário com dropdown */}
-          <div className="relative">
-            <button
-              id="user-menu-button"
-              onClick={() => setShowUserMenu(!showUserMenu)}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/5 transition-colors"
-            >
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white text-sm font-medium shrink-0">
-                {userName?.[0]?.toUpperCase() ?? ""}
-              </div>
-              <div className="flex-1 min-w-0 text-left">
-                <p className="text-sm font-medium text-white truncate">{userName ?? "Usuário"}</p>
-                <p className="text-xs text-white/60">Administrador</p>
-              </div>
-              <ChevronDown className={`h-4 w-4 text-white/60 transition-transform ${showUserMenu ? "rotate-180" : ""}`} />
-            </button>
-
-            {/* Dropdown menu */}
-            {showUserMenu && (
-              <div
-                id="user-menu-dropdown"
-                className="absolute bottom-full left-0 right-0 mb-1 bg-white rounded-xl border border-[#E2E8F0] shadow-lg overflow-hidden z-50"
-              >
-                {/* Cabeçalho do dropdown */}
-                <div className="px-4 py-3 border-b border-[#E2E8F0]">
-                  <p className="text-sm font-semibold text-[#1E293B] truncate">{userName ?? "Usuário"}</p>
-                  <p className="text-sm text-[#64748B] truncate">{clinicName ?? "Clínica"}</p>
-                </div>
-
-                {/* Opção: Meu perfil */}
-                <button
-                  onClick={() => {
-                    setShowUserMenu(false)
-                    setShowProfileModal(true)
-                  }}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-[#1E293B] hover:bg-[#F8FAFC] transition-colors text-left"
-                >
-                  <svg className="h-4 w-4 text-[#64748B]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                    <circle cx="12" cy="7" r="4"/>
-                  </svg>
-                  Meu perfil
-                </button>
-
-                {/* Opção: Configurações da clínica */}
-                <button
-                  onClick={() => {
-                    setShowUserMenu(false)
-                    router.push("/dashboard/configuracoes")
-                  }}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-[#1E293B] hover:bg-[#F8FAFC] transition-colors text-left"
-                >
-                  <svg className="h-4 w-4 text-[#64748B]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="12" cy="12" r="3"/>
-                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-                  </svg>
-                  Configurações da clínica
-                </button>
-
-                {/* Divisor */}
-                <div className="border-t border-[#E2E8F0]" />
-
-                {/* Opção: Sair */}
-                <button
-                  onClick={() => {
-                    setShowUserMenu(false)
-                    handleLogout()
-                  }}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-[#EF4444] hover:bg-[#FEF2F2] transition-colors text-left"
-                >
-                  <LogOut className="h-4 w-4" />
-                  Sair
-                </button>
-
-              </div>
-            )}
-          </div>
-
-        </div>
-      </aside>
-
-      {/* Profile Modal */}
-      {showProfileModal && (
-        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-base font-bold text-[#1E293B]">Meu perfil</h2>
-              <button
-                onClick={() => setShowProfileModal(false)}
-                className="text-[#64748B] hover:text-[#1E293B]"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="flex flex-col items-center mb-6">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#0F3460] text-white text-2xl font-bold mb-3">
-                {userName?.[0]?.toUpperCase() ?? ""}
-              </div>
-              <p className="text-base font-semibold text-[#1E293B]">{userName ?? "Usuário"}</p>
-              <p className="text-sm text-[#64748B]">Administrador</p>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-[#64748B] mb-1">
-                  Nome completo
-                </label>
-                <input
-                  type="text"
-                  defaultValue={userName ?? ""}
-                  className="w-full h-10 px-3 rounded-lg border border-[#E2E8F0] text-sm text-[#1E293B] bg-[#F8FAFC]"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-[#64748B] mb-1">
-                  Clínica
-                </label>
-                <input
-                  type="text"
-                  value={clinicName ?? ""}
-                  readOnly
-                  className="w-full h-10 px-3 rounded-lg border border-[#E2E8F0] text-sm text-[#1E293B] bg-[#F8FAFC]"
-                />
-              </div>
-            </div>
-
-            <button
-              onClick={() => setShowProfileModal(false)}
-              className="w-full h-10 mt-6 rounded-lg bg-[#0F3460] text-white text-sm font-medium hover:bg-[#0A2540] transition-colors"
-            >
-              Fechar
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Main */}
       <div className="flex-1 flex flex-col overflow-hidden">
-
-        {/* Header */}
         <header className="bg-white border-b border-[#E2E8F0] px-6 py-4 shrink-0">
-          {/* LINHA 1: Título + busca + sino */}
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-2xl font-bold text-[#1E293B]">Central de Envios</h1>
             <div className="flex items-center gap-3">
@@ -643,19 +373,13 @@ export default function AutomacaoPage() {
               </div>
             </div>
           </div>
-          {/* LINHA 2: Subtítulo */}
           <div className="mb-6">
             <p className="text-sm text-[#64748B]">Veja quem precisa de contato hoje e envie mensagens com 1 clique pelo WhatsApp.</p>
           </div>
         </header>
 
-        {/* Conteúdo */}
         <main className="flex-1 overflow-auto p-6">
-
-          {/* FILA DO DIA */}
           <div className="mb-6">
-
-            {/* Título + badge */}
             <div className="flex items-center justify-between mb-3">
               <div>
                 <h2 className="text-lg font-bold text-[#1E293B]">Fila de hoje</h2>
@@ -666,10 +390,7 @@ export default function AutomacaoPage() {
               </span>
             </div>
 
-            {/* Barra de filtros rápidos */}
             <div className="flex items-center gap-3 flex-wrap mb-4">
-
-              {/* Botão Filtros avançados */}
               <button
                 onClick={() => setShowFilterPanel(true)}
                 className={`flex items-center gap-2 h-9 px-4 rounded-lg border text-sm font-medium transition-colors ${
@@ -687,7 +408,6 @@ export default function AutomacaoPage() {
                 )}
               </button>
 
-              {/* Ordenação */}
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as "urgency" | "value")}
@@ -697,23 +417,14 @@ export default function AutomacaoPage() {
                 <option value="value">Maior valor primeiro</option>
               </select>
 
-              
-              {/* Limpar filtros */}
               {activeFiltersCount > 0 && (
-                <button
-                  onClick={handleClearFilters}
-                  className="text-sm text-[#EF4444] hover:underline ml-auto"
-                >
+                <button onClick={handleClearFilters} className="text-sm text-[#EF4444] hover:underline ml-auto">
                   Limpar todos os filtros
                 </button>
               )}
-
             </div>
 
-            {/* Tabela */}
             <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden shadow-sm">
-
-              {/* Header da tabela */}
               <div className="bg-[#F8FAFC] border-b border-[#E2E8F0] px-5 py-3 grid gap-3 text-xs uppercase text-[#64748B] font-medium tracking-wider" style={{gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr 1fr'}}>
                 <div>Nome</div>
                 <div>Última consulta</div>
@@ -724,12 +435,9 @@ export default function AutomacaoPage() {
                 <div>Ação</div>
               </div>
 
-              {/* Linhas */}
               {filteredAndSortedPatients.map((patient) => (
                 <div key={patient.id}>
-                  <div className={`border-b border-[#F1F5F9] px-6 py-5 grid gap-3 hover:bg-[#F8FAFC] transition-colors ${aguardandoConfirmacao[patient.id] ? 'items-start' : 'items-center'}`} style={{gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr 1fr'}}>  
-
-                    {/* Nome */}
+                  <div className={`border-b border-[#F1F5F9] px-6 py-5 grid gap-3 hover:bg-[#F8FAFC] transition-colors ${aguardandoConfirmacao[patient.id] ? 'items-start' : 'items-center'}`} style={{gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr 1fr'}}>
                     <div className="flex items-center gap-3">
                       <div className={`${patient.avatarColor ?? "bg-[#3B82F6]"} w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0`}>
                         {patient.avatar ?? ""}
@@ -752,38 +460,32 @@ export default function AutomacaoPage() {
                       </div>
                     </div>
 
-                    {/* Última consulta */}
                     <div>
                       <p className="text-sm text-[#64748B]">{patient.lastVisit ?? "-"}</p>
                     </div>
 
-                    {/* Dias sem voltar */}
                     <div>
-                      <p className={`text-sm font-bold ${getDaysSinceColor(patient.daysSince ?? 0)}`}>
+                      <p className={`text-sm font-bold ${getDaysSinceColor(patient.nivelRisco ?? "ok")}`}>
                         {patient.daysSince ?? 0} dias
                       </p>
                     </div>
 
-                    {/* Tentativa */}
                     <div>
                       <span className={`inline-block ${patient.attemptBg ?? "bg-[#EFF6FF]"} ${patient.attemptText ?? "text-[#1D4ED8]"} px-2 py-1 rounded text-xs font-medium`}>
                         {patient.attemptLabel ?? "1ª"} tentativa
                       </span>
                     </div>
 
-                    {/* Procedimento */}
                     <div>
                       <p className="text-sm text-[#64748B]">{patient.procedure ?? "-"}</p>
                     </div>
 
-                    {/* Valor estimado */}
                     <div>
                       <p className="text-sm font-medium text-[#1E293B]">
                         {patient.estimatedValue?.toLocaleString?.('pt-BR', { style: 'currency', currency: 'BRL' }) ?? "R$ 0,00"}
                       </p>
                     </div>
 
-                    {/* Ação */}
                     <div className="flex items-center gap-2">
                       {aguardandoConfirmacao[patient.id] ? (
                         <div className="flex flex-col gap-1.5">
@@ -805,17 +507,17 @@ export default function AutomacaoPage() {
                         </div>
                       ) : enviados[patient.id] ? (
                         <div className="flex items-center gap-2 relative">
-                        <div className="flex items-center gap-1 text-[#10B981]">
-                          <CheckCircle className="h-3.5 w-3.5 shrink-0" />
-                          <span className="text-sm font-medium">Enviado</span>
-                        </div>
-                        <span className="text-[#CBD5E1]">·</span>
-                        <button
-                          onClick={() => setMenuAcoes((prev) => ({ ...prev, [patient.id]: !prev[patient.id] }))}
-                          className="text-sm text-[#64748B] hover:text-[#1E293B] underline underline-offset-2 transition-colors"
-                        >
-                          O que aconteceu? ▾
-                        </button>
+                          <div className="flex items-center gap-1 text-[#10B981]">
+                            <CheckCircle className="h-3.5 w-3.5 shrink-0" />
+                            <span className="text-sm font-medium">Enviado</span>
+                          </div>
+                          <span className="text-[#CBD5E1]">·</span>
+                          <button
+                            onClick={() => setMenuAcoes((prev) => ({ ...prev, [patient.id]: !prev[patient.id] }))}
+                            className="text-sm text-[#64748B] hover:text-[#1E293B] underline underline-offset-2 transition-colors"
+                          >
+                            O que aconteceu? ▾
+                          </button>
                           {menuAcoes[patient.id] && (
                             <div className="absolute top-full left-0 mt-1 w-52 bg-white border border-[#E2E8F0] rounded-xl shadow-lg z-50 overflow-hidden">
                               <button onClick={() => handlePacienteVoltou(patient)}
@@ -851,16 +553,10 @@ export default function AutomacaoPage() {
                         </Button>
                       )}
                     </div>
-
                   </div>
-
-                  {/* Confirmação de envio */}
-                  
-
                 </div>
               ))}
 
-              {/* Estado vazio */}
               {filteredAndSortedPatients.length === 0 && (
                 <div className="py-16 text-center">
                   <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F1F5F9] mx-auto mb-3">
@@ -868,16 +564,12 @@ export default function AutomacaoPage() {
                   </div>
                   <p className="text-sm font-medium text-[#1E293B]">Nenhum paciente encontrado</p>
                   <p className="text-xs text-[#64748B] mt-1">Tente ajustar ou limpar os filtros</p>
-                  <button
-                    onClick={handleClearFilters}
-                    className="mt-3 text-sm text-[#0F3460] hover:underline font-medium"
-                  >
+                  <button onClick={handleClearFilters} className="mt-3 text-sm text-[#0F3460] hover:underline font-medium">
                     Limpar todos os filtros
                   </button>
                 </div>
               )}
 
-              {/* Rodapé */}
               <div className="bg-white px-6 py-5 border-t border-[#E2E8F0] flex items-center justify-between">
                 <p className="text-xs text-[#64748B]">
                   Mostrando {filteredAndSortedPatients.length} de {fila.length} pacientes
@@ -890,27 +582,21 @@ export default function AutomacaoPage() {
                   Ver todos os {fila.length} pacientes
                 </Button>
               </div>
-
             </div>
           </div>
 
-          {/* MENSAGENS CONFIGURADAS */}
           <div className="mb-6">
             <div className="mb-5">
               <h2 className="text-lg font-bold text-[#1E293B]">Mensagens configuradas</h2>
               <p className="text-sm text-[#64748B]">
                 Edite os textos em{" "}
-                <button
-                  onClick={() => router.push("/dashboard/configuracoes")}
-                  className="text-[#0F3460] hover:underline font-medium"
-                >
+                <button onClick={() => router.push("/dashboard/configuracoes")} className="text-[#0F3460] hover:underline font-medium">
                   Configurações
                 </button>
               </p>
             </div>
 
             <div className="grid grid-cols-3 gap-5">
-              {/* 1ª tentativa */}
               <div className="bg-white border border-l-4 border-l-[#3B82F6] border-[#E2E8F0] rounded-xl p-5 shadow-sm">
                 <span className="inline-block bg-[#EFF6FF] text-[#1D4ED8] px-3 py-1 rounded-full text-xs font-medium mb-2">1ª tentativa</span>
                 <p className="text-xs text-[#64748B] italic mb-3">Enviar assim que entrar na fila</p>
@@ -920,7 +606,6 @@ export default function AutomacaoPage() {
                 </div>
               </div>
 
-              {/* 2ª tentativa */}
               <div className="bg-white border border-l-4 border-l-[#F59E0B] border-[#E2E8F0] rounded-xl p-5 shadow-sm">
                 <span className="inline-block bg-[#FFFBEB] text-[#92400E] px-3 py-1 rounded-full text-xs font-medium mb-2">2ª tentativa</span>
                 <p className="text-xs text-[#64748B] italic mb-3">Enviar após <strong>3 dias</strong> sem resposta</p>
@@ -930,7 +615,6 @@ export default function AutomacaoPage() {
                 </div>
               </div>
 
-              {/* 3ª tentativa */}
               <div className="bg-white border border-l-4 border-l-[#EF4444] border-[#E2E8F0] rounded-xl p-5 shadow-sm">
                 <span className="inline-block bg-[#FEF2F2] text-[#DC2626] px-3 py-1 rounded-full text-xs font-medium mb-2">3ª tentativa</span>
                 <p className="text-xs text-[#64748B] italic mb-3">Enviar após <strong>5 dias</strong> sem resposta</p>
@@ -941,39 +625,25 @@ export default function AutomacaoPage() {
               </div>
             </div>
           </div>
-
         </main>
       </div>
 
-      {/* Overlay do painel */}
       {showFilterPanel && (
-        <div
-          className="fixed inset-0 bg-black/30 z-40"
-          onClick={() => setShowFilterPanel(false)}
-        />
+        <div className="fixed inset-0 bg-black/30 z-40" onClick={() => setShowFilterPanel(false)} />
       )}
 
-      {/* Painel lateral de filtros */}
       <div className={`fixed top-0 right-0 h-full w-80 bg-white shadow-2xl z-50 flex flex-col transition-transform duration-300 ${showFilterPanel ? "translate-x-0" : "translate-x-full"}`}>
-
-        {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-[#E2E8F0]">
           <div>
             <h3 className="text-base font-bold text-[#1E293B]">Filtros avançados</h3>
             <p className="text-xs text-[#64748B] mt-0.5">Refine a lista de pacientes</p>
           </div>
-          <button
-            onClick={() => setShowFilterPanel(false)}
-            className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-[#F8FAFC] text-[#64748B] transition-colors"
-          >
+          <button onClick={() => setShowFilterPanel(false)} className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-[#F8FAFC] text-[#64748B] transition-colors">
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Conteúdo scrollável */}
         <div className="flex-1 overflow-y-auto p-5 space-y-6">
-
-          {/* Tentativa */}
           <div>
             <p className="text-xs font-semibold text-[#64748B] uppercase tracking-wider mb-3">Tentativa de contato</p>
             <div className="space-y-2">
@@ -1002,7 +672,6 @@ export default function AutomacaoPage() {
 
           <div className="border-t border-[#E2E8F0]" />
 
-          {/* Procedimento */}
           <div>
             <p className="text-xs font-semibold text-[#64748B] uppercase tracking-wider mb-3">Procedimento</p>
             <div className="space-y-2">
@@ -1033,7 +702,6 @@ export default function AutomacaoPage() {
 
           <div className="border-t border-[#E2E8F0]" />
 
-          {/* Valor estimado */}
           <div>
             <p className="text-xs font-semibold text-[#64748B] uppercase tracking-wider mb-3">Valor estimado da consulta</p>
             <div className="flex items-end gap-2">
@@ -1041,13 +709,8 @@ export default function AutomacaoPage() {
                 <label className="text-xs text-[#64748B] mb-1 block">De</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[#94A3B8]">R$</span>
-                  <input
-                    type="number"
-                    placeholder="0"
-                    value={filterMinValue}
-                    onChange={(e) => setFilterMinValue(e.target.value)}
-                    className="w-full h-9 pl-8 pr-3 rounded-lg border border-[#E2E8F0] text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#0F3460]"
-                  />
+                  <input type="number" placeholder="0" value={filterMinValue} onChange={(e) => setFilterMinValue(e.target.value)}
+                    className="w-full h-9 pl-8 pr-3 rounded-lg border border-[#E2E8F0] text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#0F3460]" />
                 </div>
               </div>
               <span className="text-[#94A3B8] mb-2">—</span>
@@ -1055,28 +718,19 @@ export default function AutomacaoPage() {
                 <label className="text-xs text-[#64748B] mb-1 block">Até</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[#94A3B8]">R$</span>
-                  <input
-                    type="number"
-                    placeholder="9999"
-                    value={filterMaxValue}
-                    onChange={(e) => setFilterMaxValue(e.target.value)}
-                    className="w-full h-9 pl-8 pr-3 rounded-lg border border-[#E2E8F0] text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#0F3460]"
-                  />
+                  <input type="number" placeholder="9999" value={filterMaxValue} onChange={(e) => setFilterMaxValue(e.target.value)}
+                    className="w-full h-9 pl-8 pr-3 rounded-lg border border-[#E2E8F0] text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#0F3460]" />
                 </div>
               </div>
             </div>
-            {/* Atalhos rápidos */}
             <div className="flex gap-2 mt-2 flex-wrap">
               {[
                 { label: "Até R$ 500", min: "", max: "500" },
                 { label: "R$ 500–2000", min: "500", max: "2000" },
                 { label: "Acima R$ 2000", min: "2000", max: "" },
               ].map((preset) => (
-                <button
-                  key={preset.label}
-                  onClick={() => { setFilterMinValue(preset.min); setFilterMaxValue(preset.max) }}
-                  className="text-xs px-2 py-1 rounded-md bg-[#F8FAFC] border border-[#E2E8F0] text-[#64748B] hover:bg-[#EFF6FF] hover:text-[#1D4ED8] hover:border-[#BFDBFE] transition-colors"
-                >
+                <button key={preset.label} onClick={() => { setFilterMinValue(preset.min); setFilterMaxValue(preset.max) }}
+                  className="text-xs px-2 py-1 rounded-md bg-[#F8FAFC] border border-[#E2E8F0] text-[#64748B] hover:bg-[#EFF6FF] hover:text-[#1D4ED8] hover:border-[#BFDBFE] transition-colors">
                   {preset.label}
                 </button>
               ))}
@@ -1085,40 +739,28 @@ export default function AutomacaoPage() {
 
           <div className="border-t border-[#E2E8F0]" />
 
-          {/* Dias sem consulta */}
           <div>
             <p className="text-xs font-semibold text-[#64748B] uppercase tracking-wider mb-3">Dias sem consulta</p>
             <div>
               <label className="text-xs text-[#64748B] mb-1 block">Mínimo de dias</label>
-              <input
-                type="number"
-                placeholder="Ex: 180"
-                value={filterMinDays}
-                onChange={(e) => setFilterMinDays(e.target.value)}
-                className="w-full h-9 px-3 rounded-lg border border-[#E2E8F0] text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#0F3460]"
-              />
+              <input type="number" placeholder="Ex: 180" value={filterMinDays} onChange={(e) => setFilterMinDays(e.target.value)}
+                className="w-full h-9 px-3 rounded-lg border border-[#E2E8F0] text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#0F3460]" />
             </div>
-            {/* Atalhos rápidos */}
             <div className="flex gap-2 mt-2">
               {[
                 { label: "+120 dias", value: "120" },
                 { label: "+180 dias", value: "180" },
                 { label: "+365 dias", value: "365" },
               ].map((preset) => (
-                <button
-                  key={preset.label}
-                  onClick={() => setFilterMinDays(preset.value)}
-                  className="text-xs px-2 py-1 rounded-md bg-[#F8FAFC] border border-[#E2E8F0] text-[#64748B] hover:bg-[#EFF6FF] hover:text-[#1D4ED8] hover:border-[#BFDBFE] transition-colors"
-                >
+                <button key={preset.label} onClick={() => setFilterMinDays(preset.value)}
+                  className="text-xs px-2 py-1 rounded-md bg-[#F8FAFC] border border-[#E2E8F0] text-[#64748B] hover:bg-[#EFF6FF] hover:text-[#1D4ED8] hover:border-[#BFDBFE] transition-colors">
                   {preset.label}
                 </button>
               ))}
             </div>
           </div>
-
         </div>
 
-        {/* Footer do painel */}
         <div className="p-5 border-t border-[#E2E8F0] flex gap-3">
           <button
             onClick={() => {
@@ -1132,16 +774,25 @@ export default function AutomacaoPage() {
           >
             Limpar
           </button>
-          <button
-            onClick={handleApplyFilters}
-            className="flex-1 h-10 rounded-lg bg-[#0F3460] text-white text-sm font-medium hover:bg-[#0A2540] transition-colors"
-          >
+          <button onClick={handleApplyFilters} className="flex-1 h-10 rounded-lg bg-[#0F3460] text-white text-sm font-medium hover:bg-[#0A2540] transition-colors">
             Aplicar filtros
           </button>
         </div>
-
       </div>
 
+      <ModalVaiMarcar
+        aberto={modalVaiMarcarAberto}
+        paciente={pacienteModalVaiMarcar ? {
+          id: pacienteModalVaiMarcar.id,
+          nome: pacienteModalVaiMarcar.name,
+          procedimento: pacienteModalVaiMarcar.procedure,
+        } : null}
+        onFechar={() => {
+          setModalVaiMarcarAberto(false)
+          setPacienteModalVaiMarcar(null)
+        }}
+        onConfirmar={handleConfirmarVaiMarcar}
+      />
     </div>
   )
 }

@@ -9,7 +9,8 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { pacienteId, valorRecuperado, acao } = await req.json()
+    const body = await req.json()
+    const { pacienteId, valorRecuperado, acao } = body
 
     const clinicaResult = await pool.query(
       `SELECT c.id FROM "Clinica" c
@@ -22,10 +23,20 @@ export async function POST(req: Request) {
       return Response.json({ error: "Clínica não encontrada" }, { status: 404 })
     }
 
+    // Garantir que o paciente pertence à clínica
+    const pacienteCheck = await pool.query(
+      `SELECT id FROM "Paciente" WHERE id = $1 AND "clinicaId" = $2`,
+      [pacienteId, clinicaId]
+    )
+    if (pacienteCheck.rows.length === 0) {
+      return Response.json({ error: "Paciente não encontrado" }, { status: 404 })
+    }
+
     if (acao === "nao_contatar") {
       await pool.query(
         `UPDATE "Paciente" SET
-          status = 'nao_contatar'::text::"StatusPaciente",
+          status = 'nao_contatar'::"StatusPaciente",
+          "vaiMarcar" = FALSE,
           "atualizadoEm" = NOW()
         WHERE id = $1 AND "clinicaId" = $2`,
         [pacienteId, clinicaId]
@@ -35,26 +46,70 @@ export async function POST(req: Request) {
       await pool.query(
         `UPDATE "Paciente" SET
           "dadosIncompletos" = true,
+          "vaiMarcar" = FALSE,
           "atualizadoEm" = NOW()
         WHERE id = $1 AND "clinicaId" = $2`,
         [pacienteId, clinicaId]
       )
 
     } else if (acao === "vai_marcar") {
+      const { dataConsulta, horario, procedimento } = body
+
+      if (dataConsulta) {
+        // Paciente definiu data: cria agendamento e remove da fila de follow-up
+        const dataConsultaNormalizada = String(dataConsulta).slice(0, 10)
+
+        await pool.query(
+          `INSERT INTO public."Agendamento"
+            ("pacienteId", "clinicaId", "dataConsulta", horario, procedimento, status)
+          VALUES ($1, $2, $3::date, $4, $5, 'agendado'::public."StatusAgendamento")`,
+          [
+            pacienteId,
+            clinicaId,
+            dataConsultaNormalizada,
+            horario || null,
+            procedimento || null,
+          ]
+        )
+
+        await pool.query(
+          `UPDATE "Paciente" SET
+            "vaiMarcar" = FALSE,
+            "ultimaTentativa" = NOW(),
+            "tentativaAtual" = GREATEST("tentativaAtual", 1),
+            "atualizadoEm" = NOW()
+          WHERE id = $1 AND "clinicaId" = $2`,
+          [pacienteId, clinicaId]
+        )
+      } else {
+        // Prometeu marcar depois: entra na fila de follow-up em 7 dias
+        await pool.query(
+          `UPDATE "Paciente" SET
+            "vaiMarcar" = TRUE,
+            "ultimaTentativa" = NOW(),
+            "tentativaAtual" = GREATEST("tentativaAtual", 1),
+            "atualizadoEm" = NOW()
+          WHERE id = $1 AND "clinicaId" = $2`,
+          [pacienteId, clinicaId]
+        )
+      }
+
+    } else if (acao === "feito_follow_up") {
+      // Follow-up concluído manualmente na Agenda — remove da fila
       await pool.query(
         `UPDATE "Paciente" SET
+          "vaiMarcar" = FALSE,
           "ultimaTentativa" = NOW(),
-          "vaiMarcar" = TRUE,
           "atualizadoEm" = NOW()
         WHERE id = $1 AND "clinicaId" = $2`,
         [pacienteId, clinicaId]
       )
 
     } else {
-      // acao === "recuperado" (padrão)
+      // acao === "recuperado" (padrão — paciente voltou)
       await pool.query(
         `UPDATE "Paciente" SET
-          status = 'recuperado'::text::"StatusPaciente",
+          status = 'recuperado'::"StatusPaciente",
           "ultimaConsulta" = NOW(),
           "tentativaAtual" = 0,
           "ultimaTentativa" = NULL,
@@ -64,22 +119,23 @@ export async function POST(req: Request) {
         [pacienteId, clinicaId]
       )
 
+      // Atualiza o último ContactAttempt como recuperado
       await pool.query(
         `UPDATE "ContactAttempt"
-          SET tipo = 'recuperado', "valorRecuperado" = $1
-          WHERE "pacienteId" = $2 AND "clinicaId" = $3
-          AND id = (
-            SELECT id FROM "ContactAttempt"
-            WHERE "pacienteId" = $2 AND "clinicaId" = $3
-            ORDER BY "criadoEm" DESC LIMIT 1
-          )`,
-        [valorRecuperado || 0, pacienteId, clinicaId]
+         SET tipo = 'recuperado', "valorRecuperado" = $1
+         WHERE id = (
+           SELECT id FROM "ContactAttempt"
+           WHERE "pacienteId" = $2 AND "clinicaId" = $3
+           ORDER BY "criadoEm" DESC
+           LIMIT 1
+         )`,
+        [valorRecuperado ?? 0, pacienteId, clinicaId]
       )
     }
 
     return Response.json({ success: true })
   } catch (error) {
-    console.error(error)
+    console.error("[recuperado] erro:", error)
     return Response.json({ error: "Erro ao processar ação" }, { status: 500 })
   }
 }

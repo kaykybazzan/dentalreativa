@@ -1,3 +1,5 @@
+
+
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 import { pool } from "@/lib/db"
@@ -11,7 +13,7 @@ export async function GET() {
   try {
     const result = await pool.query(
       `SELECT cm.mensagem1, cm.mensagem2, cm.mensagem3, cm."mensagemDireta",
-              cm."diasRiscoMedio", cm."diasRiscoAlto", cm."diasRiscoCritico"
+       cm."diasRiscoMedio", cm."diasRiscoAlto", cm."diasRiscoCritico"
        FROM "ConfiguracaoMensagens" cm
        INNER JOIN "Clinica" c ON c.id = cm."clinicaId"
        INNER JOIN "Usuario" u ON u."clinicaId" = c.id
@@ -83,18 +85,18 @@ export async function POST(req: Request) {
 
     await pool.query(
       `INSERT INTO "ConfiguracaoMensagens" 
-        ("clinicaId", mensagem1, mensagem2, mensagem3, "mensagemDireta", "diasRiscoMedio", "diasRiscoAlto", "diasRiscoCritico")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       ON CONFLICT ("clinicaId")
-       DO UPDATE SET 
-         mensagem1 = $2, mensagem2 = $3, mensagem3 = $4, "mensagemDireta" = $5,
-         "diasRiscoMedio" = $6, "diasRiscoAlto" = $7, "diasRiscoCritico" = $8`,
+      ("clinicaId", mensagem1, mensagem2, mensagem3, "mensagemDireta", "diasRiscoMedio", "diasRiscoAlto", "diasRiscoCritico")
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      ON CONFLICT ("clinicaId")
+      DO UPDATE SET 
+      mensagem1 = $2, mensagem2 = $3, mensagem3 = $4, "mensagemDireta" = $5,
+      "diasRiscoMedio" = $6, "diasRiscoAlto" = $7, "diasRiscoCritico" = $8`,
       [clinicaId, mensagem1, mensagem2, mensagem3, mensagemDireta, medio, alto, critico]
     )
 
     return Response.json({ success: true })
-  } catch (error) {
-    console.error("Erro ao salvar mensagens:", error)
-    return Response.json({ error: "Erro ao salvar mensagens" }, { status: 500 })
+  } catch (error: any) {
+    console.error("Erro ao salvar mensagens:", error?.message ?? error)
+    return Response.json({ error: error?.message ?? "Erro ao salvar mensagens" }, { status: 500 })
   }
 }

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { signIn } from "next-auth/react"
-import { Mail, Lock, Eye, EyeOff, Check, DollarSign, CheckCircle } from "lucide-react"
+import { Mail, Lock, Eye, EyeOff, Check, DollarSign, CheckCircle, Users } from "lucide-react"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -241,20 +241,21 @@ export default function LoginPage() {
         </div>
 
         {/* Floating Card */}
-        <div className="absolute bottom-12 right-8 xl:bottom-16 xl:right-12 bg-card rounded-2xl p-5 shadow-md max-w-[220px]">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-success/10">
-              <DollarSign className="h-5 w-5 text-success" />
+        <div className="absolute bottom-12 right-8 xl:bottom-16 xl:right-12 bg-card rounded-2xl px-4 py-3 shadow-lg w-[200px]">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-success/15 shrink-0">
+              <DollarSign className="h-4 w-4 text-success" />
             </div>
             <div>
-              <p className="text-lg font-semibold text-card-foreground">R$ 12.400</p>
-              <p className="text-xs text-muted-foreground">recuperados esse mês</p>
+              <p className="text-base font-bold text-card-foreground leading-tight">R$ 12.400</p>
+              <p className="text-[11px] text-muted-foreground leading-tight">recuperados esse mês</p>
             </div>
           </div>
-          <p className="mt-3 text-sm text-muted-foreground">
-            34 pacientes reativados
-          </p>
+          <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-border">
+            <Users className="h-3.5 w-3.5 text-muted-foreground" />
+            <p className="text-xs text-muted-foreground">34 pacientes reativados</p>
           </div>
+        </div>
         </div>
       </div>
     </>

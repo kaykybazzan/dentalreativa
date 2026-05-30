@@ -597,124 +597,84 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          {/* Metrics Cards */}
-          <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-7">
-            {/* Card 1 - Pacientes em risco */}
-            <div className="bg-white rounded-xl border border-[#E2E8F0] p-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-[#64748B]">Pacientes em risco</p>
-                  <p className="text-3xl font-semibold text-[#1E293B] mt-2">{carregando ? "..." : dados?.cards?.emRisco ?? 0}</p>
-                  <div className="mt-2">
-                    <p className="text-xs text-[#64748B] mt-0.5">pacientes identificados</p>
+          {/* Metrics — 4 cards individuais */}
+            <div className="grid grid-cols-4 gap-4 mb-7">
+
+              {/* Card 1 — Pacientes em risco */}
+              <div className="bg-white border border-[#E2E8F0] rounded-2xl px-5 py-4 flex flex-col gap-3 hover:shadow-sm transition-shadow">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-[#64748B]">Pacientes em risco</p>
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#FEF2F2]">
+                    <AlertTriangle className="h-4 w-4 text-[#EF4444]" />
                   </div>
                 </div>
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#FEF2F2]">
-                  <AlertTriangle className="h-5 w-5 text-[#EF4444]" />
+                <p className="text-3xl font-semibold text-[#1E293B] leading-none">
+                  {carregando ? "..." : dados?.cards?.emRisco ?? 0}
+                </p>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-[#FEF2F2] text-[#EF4444] font-medium">
+                    pacientes identificados
+                  </span>
                 </div>
               </div>
-            </div>
 
-            {/* Card 2 - Aguardando resposta */}
-            <div className="bg-white rounded-xl border border-[#E2E8F0] p-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-[#64748B]">Aguardando resposta</p>
-                  <p className="text-3xl font-semibold text-[#1E293B] mt-2">{carregando ? "..." : dados?.cards?.aguardandoResposta ?? 0}</p>
-                  <div className="mt-2">
-                    <p className="text-xs text-[#64748B] mt-0.5">sem retorno após contato</p>
+              {/* Card 2 — Aguardando resposta */}
+              <div className="bg-white border border-[#E2E8F0] rounded-2xl px-5 py-4 flex flex-col gap-3 hover:shadow-sm transition-shadow">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-[#64748B]">Aguardando resposta</p>
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#FFF7ED]">
+                    <Clock className="h-4 w-4 text-[#F59E0B]" />
                   </div>
                 </div>
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#FFF7ED]">
-                  <Clock className="h-5 w-5 text-[#F59E0B]" />
+                <p className="text-3xl font-semibold text-[#1E293B] leading-none">
+                  {carregando ? "..." : dados?.cards?.aguardandoResposta ?? 0}
+                </p>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-[#FFF7ED] text-[#D97706] font-medium">
+                    sem retorno após contato
+                  </span>
                 </div>
               </div>
-            </div>
 
-            {/* Card 3 - Contatados este mês */}
-            <div className="bg-white rounded-xl border border-[#E2E8F0] p-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-[#64748B]">Contatados este mês</p>
-                  <p className="text-3xl font-semibold text-[#1E293B] mt-2">{carregando ? "..." : dados?.cards?.recuperadosViaContato ?? 0}</p>
-                  <div className="mt-2">
-                    <p className="text-xs text-[#64748B] mt-0.5">pacientes recuperados</p>
+              {/* Card 3 — Contatados este mês */}
+              <div className="bg-white border border-[#E2E8F0] rounded-2xl px-5 py-4 flex flex-col gap-3 hover:shadow-sm transition-shadow">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-[#64748B]">Contatados este mês</p>
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#EFF6FF]">
+                    <Send className="h-4 w-4 text-[#3B82F6]" />
                   </div>
                 </div>
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#EFF6FF]">
-                  <Send className="h-5 w-5 text-[#3B82F6]" />
+                <p className="text-3xl font-semibold text-[#1E293B] leading-none">
+                  {carregando ? "..." : dados?.cards?.recuperadosViaContato ?? 0}
+                </p>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-[#EFF6FF] text-[#1D4ED8] font-medium">
+                    pacientes recuperados
+                  </span>
                 </div>
               </div>
-            </div>
 
-            {/* Card 4 - Receita recuperada */}
-            <div className="bg-white rounded-xl border border-[#E2E8F0] p-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-[#64748B]">Potencial recuperável</p>
-                  <p className="text-3xl font-semibold text-[#1E293B] mt-2">{carregando ? "..." : `R$ ${dados?.cards?.receitaEmRisco?.toLocaleString("pt-BR", { minimumFractionDigits: 2 }) ?? "0,00"}`}</p>
-                  <div className="mt-2">
-                    <p className="text-xs text-[#64748B] mt-0.5">valor em risco identificado</p>
+              {/* Card 4 — Potencial recuperável */}
+              <div className="bg-white border border-[#E2E8F0] rounded-2xl px-5 py-4 flex flex-col gap-3 hover:shadow-sm transition-shadow">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-[#64748B]">Potencial recuperável</p>
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#F0FDF4]">
+                    <DollarSign className="h-4 w-4 text-[#10B981]" />
                   </div>
                 </div>
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#F0FDF4]">
-                  <DollarSign className="h-5 w-5 text-[#10B981]" />
+                <p className="text-2xl font-semibold text-[#10B981] leading-none">
+                  {carregando ? "..." : `R$ ${dados?.cards?.receitaEmRisco?.toLocaleString("pt-BR", { minimumFractionDigits: 2 }) ?? "0,00"}`}
+                </p>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-[#F0FDF4] text-[#15803D] font-medium">
+                    valor em risco identificado
+                  </span>
                 </div>
               </div>
-            </div>
-          </div>
 
-          {/* Chart - Full Width */}
-          <div className="bg-white rounded-xl border border-[#E2E8F0] p-7 mb-7">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-1.5">
-                <h3 className="text-base font-medium text-[#1E293B]">Pacientes em risco ao longo do tempo</h3>
-                <HelpCircle className="h-3.5 w-3.5 text-[#94A3B8]" />
-              </div>
-              <div className="flex items-center gap-1">
-                {(["6m", "1a", "2a"] as const).map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => { setPeriodoSelecionado(p); setCustomDates(null); setCustomLabel(null) }}
-                    className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                      periodoSelecionado === p
-                        ? "bg-[#0F3460] text-white"
-                        : "bg-white text-[#64748B] border border-[#E2E8F0] hover:bg-[#F8FAFC]"
-                    }`}
-                  >
-                    {p === "6m" ? "6 meses" : p === "1a" ? "1 ano" : "2 anos"}
-                  </button>
-                ))}
-                <div className="relative" ref={customPickerRef}>
-                  <button
-                    onClick={() => setShowCustomPicker(!showCustomPicker)}
-                    className={`px-3 py-1.5 text-sm font-medium rounded-lg flex items-center gap-1.5 transition-colors ${
-                      periodoSelecionado === "custom"
-                        ? "bg-[#0F3460] text-white"
-                        : "bg-white text-[#64748B] border border-[#E2E8F0] hover:bg-[#F8FAFC]"
-                    }`}
-                  >
-                    <Calendar className="h-4 w-4" />
-                    {periodoSelecionado === "custom" && customLabel ? customLabel : "Personalizado"}
-                  </button>
-                  {showCustomPicker && (
-                    <div className="absolute right-0 top-full mt-2 z-50">
-                      <DateRangePicker
-                        onApply={(from, to) => {
-                          const fromShort = from.slice(0, 5)
-                          const toShort = to.slice(0, 5)
-                          setCustomLabel(`${fromShort} - ${toShort}`)
-                          setCustomDates({ from, to })
-                          setPeriodoSelecionado("custom")
-                          setShowCustomPicker(false)
-                        }}
-                        onCancel={() => setShowCustomPicker(false)}
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
             </div>
+
+
             <div className="h-64">
               {carregando ? (
                 <div className="h-full flex items-center justify-center text-sm text-[#64748B]">
@@ -864,11 +824,8 @@ export default function DashboardPage() {
               </button>
             </div>
           </div>
-          </div>
         </main>
       </div>
-      
-      
     </div>
   )
 }

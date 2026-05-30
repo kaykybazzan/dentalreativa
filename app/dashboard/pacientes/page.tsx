@@ -20,6 +20,7 @@ import {
   X,
   AlertTriangle,
   Calendar,
+  CalendarDays,
   Upload,
   Download,
   Pencil,
@@ -43,6 +44,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { ModalVaiMarcar } from "@/components/modal-vai-marcar"
 import { parsearArquivoPacientes } from "@/lib/parsearArquivoPacientes"
 import { aplicarRisco } from "@/lib/calcularRisco"
 import { normalizarParaWhatsApp, validarTelefone, gerarLinkWhatsApp } from "@/lib/formatarTelefone"
@@ -87,11 +89,11 @@ const statusConfig: Record<string, { label: string; bgColor: string; textColor: 
   em_risco: { label: "Em risco", bgColor: "bg-transparent", textColor: "text-[#EF4444]" },
 }
 
-const tabFilters: { key: PatientStatus | "all" | "incompletos"; label: string }[] = [
+const tabFilters: { key: PatientStatus | "all" | "incompletos" | "vai_marcar"; label: string }[] = [
   { key: "all", label: "Todos" },
   { key: "incompletos", label: "Dados incompletos" },
   { key: "em_risco", label: "Em risco" },
-  { key: "contatado", label: "Em contato" },
+  { key: "vai_marcar", label: "Vai marcar" },
   { key: "recuperado", label: "Recuperados" },
 ]
 
@@ -114,7 +116,7 @@ export default function PatientsPage() {
   // Table state
   const [patients, setPatients] = useState<Patient[]>(samplePatients)
   const [searchQuery, setSearchQuery] = useState("")
-  const [activeTab, setActiveTab] = useState<PatientStatus | "all" | "incompletos">("all")
+  const [activeTab, setActiveTab] = useState<PatientStatus | "all" | "incompletos" | "vai_marcar">("all")
   const [filtroPeriodo, setFiltroPeriodo] = useState<"todos" | "ate6m" | "6a12m" | "mais1a">("todos")
   const [selectedPatients, setSelectedPatients] = useState<number[]>([])
   const [sortField, setSortField] = useState<"daysSinceVisit" | "avgTicket" | null>(null)
@@ -132,6 +134,8 @@ export default function PatientsPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null)
   const [deletingPatient, setDeletingPatient] = useState<Patient | null>(null)
+  const [modalVaiMarcarAberto, setModalVaiMarcarAberto] = useState(false)
+  const [pacienteModalVaiMarcar, setPacienteModalVaiMarcar] = useState<{ id: number | string; nome: string; procedimento?: string } | null>(null)
   const [editForm, setEditForm] = useState({
     name: "",
     phone: "",
@@ -159,6 +163,11 @@ export default function PatientsPage() {
   const [menuAcaoPaciente, setMenuAcaoPaciente] = useState<Record<number, boolean>>({})
   const [mensagemDireta, setMensagemDireta] = useState("")
 const [mensagem1, setMensagem1] = useState("")
+  const [configRisco, setConfigRisco] = useState({
+    diasRiscoMedio: 180,
+    diasRiscoAlto: 270,
+    diasRiscoCritico: 365
+  })
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -196,6 +205,11 @@ const [mensagem1, setMensagem1] = useState("")
         .then((res) => res.json())
         .then((data) => {
           if (data.mensagemDireta) setMensagemDireta(data.mensagemDireta)
+          setConfigRisco({
+            diasRiscoMedio: data.diasRiscoMedio ?? 180,
+            diasRiscoAlto: data.diasRiscoAlto ?? 270,
+            diasRiscoCritico: data.diasRiscoCritico ?? 365,
+          })
         })
         .catch(() => {})
 
@@ -300,6 +314,8 @@ const [mensagem1, setMensagem1] = useState("")
       // Already on patients page
     } else if (navId === "automation") {
       router.push("/dashboard/automacao")
+    } else if (navId === "agenda") {
+      router.push("/dashboard/agenda")
     } else if (navId === "reports") {
       router.push("/dashboard/relatorios")
     } else if (navId === "settings") {
@@ -308,8 +324,9 @@ const [mensagem1, setMensagem1] = useState("")
   }
 
   const getDaysColor = (days: number) => {
-    if (days >= 180) return "text-[#EF4444] font-semibold"
-    if (days >= 120) return "text-[#F59E0B] font-semibold"
+    if (days >= configRisco.diasRiscoCritico) return "text-[#EF4444] font-semibold"
+    if (days >= configRisco.diasRiscoAlto)    return "text-[#F97316] font-semibold"
+    if (days >= configRisco.diasRiscoMedio)   return "text-[#F59E0B] font-semibold"
     return "text-[#64748B]"
   }
 
@@ -317,6 +334,7 @@ const [mensagem1, setMensagem1] = useState("")
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "patients", label: "Pacientes", icon: Users },
     { id: "automation", label: "Central de Envios", icon: Zap },
+    { id: "agenda", label: "Agenda", icon: CalendarDays },
     { id: "reports", label: "Relatórios", icon: BarChart3 },
     { id: "settings", label: "Configurações", icon: Settings }
   ]
@@ -380,9 +398,11 @@ const [mensagem1, setMensagem1] = useState("")
       result = result.filter(p => p.dadosIncompletos === true || (p.dadosIncompletos as any) === "true")
     } else if (activeTab === "em_risco") {
       // Usar a mesma lógica de cálculo de risco que o dashboard
-      const pacientesComRisco = aplicarRisco(rawPatients)
+      const pacientesComRisco = aplicarRisco(rawPatients, configRisco)
       const idsEmRisco = new Set(pacientesComRisco.filter(p => p.nivelRisco !== "ok").map(p => String(p.id)))
       result = result.filter(p => idsEmRisco.has(String(p.id)))
+    } else if (activeTab === "vai_marcar") {
+      result = result.filter(p => p.vaiMarcar === true)
     } else if (activeTab !== "all") {
       result = result.filter(p => p.status === activeTab)
     }
@@ -414,8 +434,10 @@ const [mensagem1, setMensagem1] = useState("")
         if (tab.key === "incompletos") {
           counts[tab.key] = patients.filter(p => p.dadosIncompletos === true || (p.dadosIncompletos as any) === "true").length
         } else if (tab.key === "em_risco") {
-          const pacientesComRisco = aplicarRisco(rawPatients)
+          const pacientesComRisco = aplicarRisco(rawPatients, configRisco)
           counts[tab.key] = pacientesComRisco.filter(p => p.nivelRisco !== "ok").length
+        } else if (tab.key === "vai_marcar") {
+          counts[tab.key] = patients.filter(p => p.vaiMarcar === true).length
         } else {
           counts[tab.key] = patients.filter(p => p.status === tab.key).length
         }
@@ -455,9 +477,33 @@ const [mensagem1, setMensagem1] = useState("")
   }
 
   const handleAcaoPaciente = async (pacienteId: number, acao: string) => {
-    setMenuAcaoPaciente((prev) => ({ ...prev, [pacienteId]: false }))
-    try {
-      if (acao === "recuperado") {
+  setMenuAcaoPaciente((prev) => ({ ...prev, [pacienteId]: false }))
+  
+  if (acao === "vai_marcar") {
+    const patient = patients.find(p => p.id === pacienteId)
+    if (patient) {
+      setPacienteModalVaiMarcar({
+        id: pacienteId,
+        nome: patient.name,
+        procedimento: patient.procedimento,
+      })
+      setModalVaiMarcarAberto(true)
+    }
+    return
+  }
+
+  try {
+    if (acao === "reativar") {
+      await fetch(`/api/pacientes/${pacienteId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "ativo" }),
+      })
+      showToast("Paciente reativado com sucesso!")
+      await fetchPatients()
+      return
+    }
+    if (acao === "recuperado") {
         const valorStr = window.prompt("Qual o valor da consulta? (deixe em branco para usar o valor registrado)")
         if (valorStr === null) return
         const valor = valorStr.trim() === "" ? 0 : parseFloat(valorStr.replace(",", "."))
@@ -473,7 +519,6 @@ const [mensagem1, setMensagem1] = useState("")
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ pacienteId, acao }),
         })
-        if (acao === "vai_marcar") showToast("Anotado! Paciente ficará em espera por 7 dias.")
         if (acao === "nao_contatar") showToast("Paciente marcado como não contatar.")
         if (acao === "numero_errado") showToast("Paciente movido para dados incompletos.")
       }
@@ -483,16 +528,45 @@ const [mensagem1, setMensagem1] = useState("")
       showToast("Erro ao processar ação")
     }
   }
+
+  const handleConfirmarVaiMarcar = async (dados: {
+    pacienteId: string | number
+    dataConsulta?: string
+    horario?: string
+    procedimento?: string
+  }) => {
+    try {
+      await fetch("/api/envios/recuperado", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pacienteId: dados.pacienteId,
+          acao: "vai_marcar",
+          dataConsulta: dados.dataConsulta,
+          horario: dados.horario,
+          procedimento: dados.procedimento,
+        }),
+      })
+      setModalVaiMarcarAberto(false)
+      setPacienteModalVaiMarcar(null)
+      showToast("Agendamento registrado com sucesso!")
+      await fetchPatients()
+    } catch (error) {
+      console.error(error)
+      showToast("Erro ao registrar agendamento")
+      throw error
+    }
+  }
   const handleMarkAsContacted = async (patientId: number) => {
     try {
       const response = await fetch(`/api/pacientes/${patientId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'em_contato' })
+        body: JSON.stringify({ status: 'contatado' })  
       })
       if (response.ok) {
         setPatients(prev => prev.map(p =>
-          p.id === patientId ? { ...p, status: "em_contato" as PatientStatus } : p
+          p.id === patientId ? { ...p, status: "contatado" as PatientStatus } : p
         ))
         showToast("Paciente marcado como contatado!")
       } else {
@@ -511,12 +585,12 @@ const [mensagem1, setMensagem1] = useState("")
           fetch(`/api/pacientes/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: 'em_contato' })
+            body: JSON.stringify({ status: 'contatado' })
           })
         )
       )
       setPatients(prev => prev.map(p =>
-        selectedPatients.includes(p.id) ? { ...p, status: "em_contato" as PatientStatus } : p
+        selectedPatients.includes(p.id) ? { ...p, status: "contatado" as PatientStatus } : p
       ))
       setSelectedPatients([])
       showToast(`${selectedPatients.length} pacientes marcados como contatados!`)
@@ -1146,7 +1220,7 @@ const [mensagem1, setMensagem1] = useState("")
                               >
                                 <Pencil className="h-4 w-4 text-[#64748B]" />
                               </button>
-                              {["contatado", "aguardando_resposta"].includes(patient.status) && (
+                             {(["contatado", "aguardando_resposta", "nao_contatar"].includes(patient.status) || patient.vaiMarcar) && (
                                 <div className="relative">
                                   <button
                                     onClick={() => setMenuAcaoPaciente((prev) => ({ ...prev, [patient.id]: !prev[patient.id] }))}
@@ -1156,24 +1230,33 @@ const [mensagem1, setMensagem1] = useState("")
                                     •••
                                   </button>
                                   {menuAcaoPaciente[patient.id] && (
-                                  <div className="absolute right-0 top-full mt-1 w-52 bg-white border border-[#E2E8F0] rounded-xl shadow-lg z-50 overflow-hidden">
-                                    <button onClick={() => handleAcaoPaciente(patient.id, "recuperado")}
-                                      className="w-full px-4 py-2.5 text-left text-sm text-[#1E293B] hover:text-[#10B981] flex items-center gap-2 transition-colors">
-                                      ✅ Paciente voltou
-                                    </button>
-                                    <button onClick={() => handleAcaoPaciente(patient.id, "vai_marcar")}
-                                      className="w-full px-4 py-2.5 text-left text-sm text-[#1E293B] hover:text-[#3B82F6] flex items-center gap-2 transition-colors">
-                                      📅 Vai marcar consulta
-                                    </button>
-                                    <button onClick={() => handleAcaoPaciente(patient.id, "nao_contatar")}
-                                      className="w-full px-4 py-2.5 text-left text-sm text-[#1E293B] hover:text-[#EF4444] flex items-center gap-2 transition-colors">
-                                      🚫 Não quer contato
-                                    </button>
-                                    <button onClick={() => handleAcaoPaciente(patient.id, "numero_errado")}
-                                      className="w-full px-4 py-2.5 text-left text-sm text-[#1E293B] hover:text-[#F59E0B] flex items-center gap-2 transition-colors">
-                                      ❌ Número errado
-                                    </button>
-                                  </div>
+                                    <div className="absolute right-0 top-full mt-1 w-52 bg-white border border-[#E2E8F0] rounded-xl shadow-lg z-50 overflow-hidden">
+                                      {patient.status === "nao_contatar" ? (
+                                        <button onClick={() => handleAcaoPaciente(patient.id, "reativar")}
+                                          className="w-full px-4 py-2.5 text-left text-sm text-[#1E293B] hover:text-[#10B981] flex items-center gap-2 transition-colors">
+                                          🔄 Reativar paciente
+                                        </button>
+                                      ) : (
+                                        <>
+                                          <button onClick={() => handleAcaoPaciente(patient.id, "recuperado")}
+                                            className="w-full px-4 py-2.5 text-left text-sm text-[#1E293B] hover:text-[#10B981] flex items-center gap-2 transition-colors">
+                                            ✅ Paciente voltou
+                                          </button>
+                                          <button onClick={() => handleAcaoPaciente(patient.id, "vai_marcar")}
+                                            className="w-full px-4 py-2.5 text-left text-sm text-[#1E293B] hover:text-[#3B82F6] flex items-center gap-2 transition-colors">
+                                            📅 Vai marcar consulta
+                                          </button>
+                                          <button onClick={() => handleAcaoPaciente(patient.id, "nao_contatar")}
+                                            className="w-full px-4 py-2.5 text-left text-sm text-[#1E293B] hover:text-[#EF4444] flex items-center gap-2 transition-colors">
+                                            🚫 Não quer contato
+                                          </button>
+                                          <button onClick={() => handleAcaoPaciente(patient.id, "numero_errado")}
+                                            className="w-full px-4 py-2.5 text-left text-sm text-[#1E293B] hover:text-[#F59E0B] flex items-center gap-2 transition-colors">
+                                            ❌ Número errado
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
                                   )}
                                 </div>
                               )}
@@ -1428,6 +1511,16 @@ const [mensagem1, setMensagem1] = useState("")
           <span className="text-sm font-medium">{toast.message}</span>
         </div>
       )}
+
+      <ModalVaiMarcar
+        aberto={modalVaiMarcarAberto}
+        paciente={pacienteModalVaiMarcar}
+        onFechar={() => {
+          setModalVaiMarcarAberto(false)
+          setPacienteModalVaiMarcar(null)
+        }}
+        onConfirmar={handleConfirmarVaiMarcar}
+      />
     </div>
   )
 }

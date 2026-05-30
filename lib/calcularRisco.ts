@@ -49,7 +49,10 @@ export function classificarRisco(dias: number, config: ConfigRisco = configRisco
 // IMPORTANTE: exclui pacientes com dadosIncompletos = true
 // IMPORTANTE: exclui pacientes com status = 'nao_contatar'
 // IMPORTANTE: exclui pacientes com status = 'recuperado'
-export function aplicarRisco(pacientes: any[]): PacienteComRisco[] {
+export function aplicarRisco(
+  pacientes: any[],
+  config: ConfigRisco = configRiscoPadrao
+): PacienteComRisco[] {
   return pacientes
     .filter((p) => !p.dadosIncompletos)
     .filter((p) => p.status !== "nao_contatar")
@@ -63,7 +66,7 @@ export function aplicarRisco(pacientes: any[]): PacienteComRisco[] {
         telefone: p.telefone,
         ultimaConsulta: p.ultimaConsulta,
         diasSemConsulta,
-        nivelRisco: classificarRisco(diasSemConsulta),
+        nivelRisco: classificarRisco(diasSemConsulta, config),
         valorTicket: parseFloat(p.valorUltimaConsulta ?? p.valorTicket ?? 0) || 0,
         status: p.status,
         dadosIncompletos: p.dadosIncompletos,
