@@ -163,19 +163,26 @@ export default function DashboardPage() {
   const userInitial = userName[0]?.toUpperCase() || "U"
 
   useEffect(() => {
-  if (typeof window !== "undefined") {
-    const clinicaId = (session?.user as any)?.clinicaId
-    const key = `onboarding_done_${clinicaId}`
-    if (clinicaId && localStorage.getItem(key) !== "true") {
-      localStorage.setItem(key, "true")
-      setShowWelcomeBanner(true)
-    }
-    setActiveNav("dashboard")
+  if (!session?.user) return
 
-    fetch("/api/pacientes")
-  .then(res => res.json())
-  .then(data => setTodosPacientes(data))
-  .catch(() => {})
+  const clinicaId = (session.user as any)?.clinicaId
+
+  if (!clinicaId) return
+
+  const key = `onboarding_done_${clinicaId}`
+  const jaViuBanner = localStorage.getItem(key)
+
+  if (jaViuBanner !== "true") {
+    setShowWelcomeBanner(true)
+    localStorage.setItem(key, "true")
+  }
+
+  setActiveNav("dashboard")
+
+  fetch("/api/pacientes")
+    .then(res => res.json())
+    .then(data => setTodosPacientes(data))
+    .catch(() => {})
 
   fetch("/api/notificacoes")
     .then(res => res.json())
@@ -184,8 +191,7 @@ export default function DashboardPage() {
       setBadgeCount(data.badgeCount || 0)
     })
     .catch(() => {})
-    }
-  }, [router, session])
+}, [session])
 
   useEffect(() => {
     setCarregando(true)
