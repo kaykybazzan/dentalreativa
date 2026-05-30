@@ -699,6 +699,134 @@ export default function DashboardPage() {
 
             </div>
 
+            {/* Filtros de período */}
+            <div className="flex items-center gap-2 mb-6">
+              <button
+                onClick={() => setPeriodoSelecionado("6m")}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  periodoSelecionado === "6m"
+                    ? "bg-[#0F3460] text-white"
+                    : "bg-white text-[#64748B] hover:bg-[#F8FAFC] border border-[#E2E8F0]"
+                }`}
+              >
+                6 meses
+              </button>
+              <button
+                onClick={() => setPeriodoSelecionado("1a")}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  periodoSelecionado === "1a"
+                    ? "bg-[#0F3460] text-white"
+                    : "bg-white text-[#64748B] hover:bg-[#F8FAFC] border border-[#E2E8F0]"
+                }`}
+              >
+                1 ano
+              </button>
+              <button
+                onClick={() => setPeriodoSelecionado("2a")}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  periodoSelecionado === "2a"
+                    ? "bg-[#0F3460] text-white"
+                    : "bg-white text-[#64748B] hover:bg-[#F8FAFC] border border-[#E2E8F0]"
+                }`}
+              >
+                2 anos
+              </button>
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    setPeriodoSelecionado("custom")
+                    setShowCustomPicker(true)
+                  }}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    periodoSelecionado === "custom"
+                      ? "bg-[#0F3460] text-white"
+                      : "bg-white text-[#64748B] hover:bg-[#F8FAFC] border border-[#E2E8F0]"
+                  }`}
+                >
+                  Personalizado
+                </button>
+
+                {showCustomPicker && (
+                  <div
+                    ref={customPickerRef}
+                    className="absolute top-full left-0 mt-2 bg-white border border-[#E2E8F0] rounded-xl shadow-lg p-4 z-50 w-72"
+                  >
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-xs font-medium text-[#64748B] mb-1">De:</label>
+                        <input
+                          type="date"
+                          id="custom-from"
+                          className="w-full h-9 px-3 rounded-lg border border-[#E2E8F0] text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[rgba(15,52,96,0.12)] focus:border-[#0F3460]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-[#64748B] mb-1">Até:</label>
+                        <input
+                          type="date"
+                          id="custom-to"
+                          className="w-full h-9 px-3 rounded-lg border border-[#E2E8F0] text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[rgba(15,52,96,0.12)] focus:border-[#0F3460]"
+                        />
+                      </div>
+                      <div className="flex gap-2 pt-2">
+                        <button
+                          onClick={() => {
+                            const fromInput = document.getElementById("custom-from") as HTMLInputElement
+                            const toInput = document.getElementById("custom-to") as HTMLInputElement
+                            const from = fromInput?.value
+                            const to = toInput?.value
+
+                            if (!from || !to) {
+                              alert("Preencha ambas as datas")
+                              return
+                            }
+
+                            if (from > to) {
+                              alert("A data inicial deve ser anterior ou igual à data final")
+                              return
+                            }
+
+                            setCustomDates({ from, to })
+                            
+                            const fromDate = new Date(from + "T00:00:00")
+                            const toDate = new Date(to + "T00:00:00")
+                            const label = `${fromDate.toLocaleDateString("pt-BR")} – ${toDate.toLocaleDateString("pt-BR")}`
+                            setCustomLabel(label)
+                            
+                            setShowCustomPicker(false)
+                          }}
+                          className="flex-1 h-9 rounded-lg bg-[#0F3460] text-white text-sm font-medium hover:bg-[#0A2540] transition-colors"
+                        >
+                          Aplicar
+                        </button>
+                        <button
+                          onClick={() => setShowCustomPicker(false)}
+                          className="flex-1 h-9 rounded-lg border border-[#E2E8F0] text-[#64748B] text-sm font-medium hover:bg-[#F8FAFC] transition-colors"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {periodoSelecionado === "custom" && customLabel && (
+                <div className="flex items-center gap-2 ml-2">
+                  <span className="text-sm text-[#64748B]">{customLabel}</span>
+                  <button
+                    onClick={() => {
+                      setCustomDates(null)
+                      setCustomLabel(null)
+                      setPeriodoSelecionado("6m")
+                    }}
+                    className="text-[#64748B] hover:text-[#1E293B] transition-colors"
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+            </div>
 
             <div className="h-64">
               {carregando ? (
