@@ -4,7 +4,6 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import {
-  AlertTriangle,
   Search,
   CheckCircle,
   SlidersHorizontal,
@@ -50,16 +49,15 @@ export default function AutomacaoPage() {
   const [enviando, setEnviando] = useState<Record<string, boolean>>({})
   const [enviados, setEnviados] = useState<Record<string, boolean>>({})
   const [aguardandoConfirmacao, setAguardandoConfirmacao] = useState<Record<string, boolean>>({})
-  const [tentativas, setTentativas] = useState<Record<string, number>>({})
   const [menuAcoes, setMenuAcoes] = useState<Record<string, boolean>>({})
 
   // Modal Vai Marcar
   const [modalVaiMarcarAberto, setModalVaiMarcarAberto] = useState(false)
   const [pacienteModalVaiMarcar, setPacienteModalVaiMarcar] = useState<PacienteFila | null>(null)
 
-  const [message1] = useState("Olá [nome]! Já faz um tempinho desde sua última consulta na [clinica]. Que tal agendar uma revisão?")
-  const [message2] = useState("[nome], temos horários disponíveis essa semana na [clinica]. Posso reservar um para você?")
-  const [message3] = useState("Oi [nome]! Queremos ter certeza de que está tudo bem. Podemos ajudar com algo? Entre em contato com a [clinica].")
+  const [message1, setMessage1] = useState("")
+  const [message2, setMessage2] = useState("")
+  const [message3, setMessage3] = useState("")
 
   const [sortBy, setSortBy] = useState<"urgency" | "value">("urgency")
   const [showOnlyUnsent, setShowOnlyUnsent] = useState(false)
@@ -114,7 +112,20 @@ export default function AutomacaoPage() {
     if (typeof window !== "undefined") {
       carregarFila()
     }
-  }, [router, session])
+  }, [session?.user?.email])
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      fetch("/api/mensagens")
+        .then((res) => res.json())
+        .then((data) => {
+          setMessage1(data.mensagem1 ?? "")
+          setMessage2(data.mensagem2 ?? "")
+          setMessage3(data.mensagem3 ?? "")
+        })
+        .catch((error) => console.error("Erro ao carregar mensagens:", error))
+    }
+  }, [session?.user?.email])
 
   const handleLogout = () => {
     router.push("/")
@@ -126,17 +137,18 @@ export default function AutomacaoPage() {
       const response = await fetch("/api/pacientes/fila")
       if (response.ok) {
         const data = await response.json()
-        const mappedFila = await Promise.all(data.map(async (p: any) => {
+        const mappedFila = data.map((p: any) => {
           const avatarColors = ["bg-[#3B82F6]", "bg-[#10B981]", "bg-[#8B5CF6]", "bg-[#F59E0B]", "bg-[#EF4444]"]
-          const avatarColor = avatarColors[Math.floor(Math.random() * avatarColors.length)]
+          const avatarColor = avatarColors[p.nome.length % avatarColors.length]
           const initials = p.nome?.split(" ")?.map((n: string) => n?.[0])?.join("")?.slice(0, 2)?.toUpperCase() ?? ""
           const ultimaConsulta = p.ultimaConsulta ? new Date(p.ultimaConsulta) : null
           const lastVisit = ultimaConsulta ? ultimaConsulta.toLocaleDateString?.('pt-BR') ?? '' : ''
 
-          const tentativaRes = await fetch(`/api/envios/mensagem?pacienteId=${p.id}`)
-          const { tentativa } = await tentativaRes.json()
-
-          const attemptNum = tentativa || 1
+          const attemptNum =
+            p.proximaTentativa >= 1 &&
+            p.proximaTentativa <= 3
+              ? p.proximaTentativa
+              : 1
           const attemptLabel = `${attemptNum}ª`
           const attemptBg = attemptNum === 1 ? "bg-[#EFF6FF]" : attemptNum === 2 ? "bg-[#FFFBEB]" : "bg-[#FEF2F2]"
           const attemptText = attemptNum === 1 ? "text-[#1D4ED8]" : attemptNum === 2 ? "text-[#92400E]" : "text-[#DC2626]"
@@ -157,20 +169,13 @@ export default function AutomacaoPage() {
             procedure: "Consulta",
             estimatedValue: p.valorTicket,
           }
-        }))
+        })
         setFila(mappedFila)
 
-        const enviadosIniciais: Record<string, boolean> = {}
-        mappedFila.forEach((p) => {
-          const jaFoiContatado =
-            (p.attempt && parseInt(p.attempt) > 1) ||
-            p.status === "em_contato" ||
-            p.status === "sem_resposta"
-          if (jaFoiContatado) {
-            enviadosIniciais[p.id] = true
-          }
-        })
-        setEnviados(enviadosIniciais)
+        // Não assumir envio automaticamente.
+        // O botão "O que aconteceu?" só aparece
+        // depois do usuário confirmar o envio.
+        setEnviados({})
       }
     } catch (error) {
       console.error("Erro ao carregar fila:", error)
@@ -180,6 +185,7 @@ export default function AutomacaoPage() {
   }
 
   const handleEnviarWhatsApp = async (paciente: PacienteFila) => {
+    if (enviando[paciente.id]) return
     setEnviando((prev) => ({ ...prev, [paciente.id]: true }))
 
     try {
@@ -386,7 +392,7 @@ export default function AutomacaoPage() {
                 <p className="text-sm text-[#64748B]">Pacientes identificados pelo sistema para contato agora</p>
               </div>
               <span className="inline-block bg-[#0F3460] text-white px-4 py-2 rounded-full text-sm font-medium">
-                {carregando ? "..." : `${fila.length} pacientes aguardando contato`}
+                {carregando ? "..." : `${filteredAndSortedPatients.length} pacientes aguardando contato`}
               </span>
             </div>
 

@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     )
 
     // Definir novo status: sem_resposta só na 3ª, senão em_contato
-    const novoStatus = numeroDaTentativa === 3 ? 'aguardando_resposta' : 'contatado'
+    const novoStatus = numeroDaTentativa === 3 ? 'sem_resposta' : 'em_contato'
 
     // Atualizar paciente: status, tentativaAtual, ultimaTentativa e atualizadoEm
     await pool.query(
