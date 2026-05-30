@@ -210,18 +210,28 @@ export default function AutomacaoPage() {
   }
 
   const handleConfirmarEnvio = async (paciente: PacienteFila) => {
-    try {
-      await fetch("/api/envios", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pacienteId: paciente.id }),
-      })
-      setEnviados((prev) => ({ ...prev, [paciente.id]: true }))
-      setAguardandoConfirmacao((prev) => ({ ...prev, [paciente.id]: false }))
-    } catch (error) {
-      console.error("Erro ao confirmar envio:", error)
+  try {
+    const res = await fetch("/api/envios", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pacienteId: paciente.id }),
+    })
+    if (!res.ok) {
+      console.error("Erro ao confirmar envio:", await res.json())
+      return
     }
+    // Remove da fila imediatamente — a API já mudou o status do paciente
+    // então ele não aparecerá mais na próxima carga da fila
+    setFila((prev) => prev.filter((p) => p.id !== paciente.id))
+    setAguardandoConfirmacao((prev) => {
+      const novo = { ...prev }
+      delete novo[paciente.id]
+      return novo
+    })
+  } catch (error) {
+    console.error("Erro ao confirmar envio:", error)
   }
+}
 
   const handleCancelarEnvio = (pacienteId: string) => {
     setAguardandoConfirmacao((prev) => ({ ...prev, [pacienteId]: false }))

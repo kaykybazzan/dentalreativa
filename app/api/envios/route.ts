@@ -24,18 +24,24 @@ export async function POST(req: Request) {
     }
 
     // Verificar quantas tentativas já foram feitas
-    const tentativasResult = await pool.query(
-      `SELECT COUNT(*) as total FROM "ContactAttempt"
-       WHERE "pacienteId" = $1 AND "clinicaId" = $2`,
-      [pacienteId, clinicaId]
-    )
-    const totalTentativas = parseInt(tentativasResult.rows[0]?.total) || 0
+    // Usar tentativaAtual do próprio Paciente como fonte de verdade
+// (em vez de contar ContactAttempts, que podem acumular de sessões antigas)
+const pacienteResult = await pool.query(
+  `SELECT "tentativaAtual" FROM "Paciente"
+   WHERE id = $1 AND "clinicaId" = $2`,
+  [pacienteId, clinicaId]
+)
+if (pacienteResult.rows.length === 0) {
+  return Response.json({ error: "Paciente não encontrado" }, { status: 404 })
+}
 
-    if (totalTentativas >= 3) {
-      return Response.json({ error: "Máximo de tentativas atingido" }, { status: 400 })
-    }
+const totalTentativas = parseInt(pacienteResult.rows[0].tentativaAtual) || 0
 
-    const numeroDaTentativa = totalTentativas + 1
+if (totalTentativas >= 3) {
+  return Response.json({ error: "Máximo de tentativas atingido" }, { status: 400 })
+}
+
+const numeroDaTentativa = totalTentativas + 1
 
     const diasParaProxima = numeroDaTentativa === 1 ? 7 : numeroDaTentativa === 2 ? 14 : null
     const proximaTentativa = diasParaProxima
@@ -50,8 +56,8 @@ export async function POST(req: Request) {
       [pacienteId, clinicaId, numeroDaTentativa]
     )
 
-    // Definir novo status: sem_resposta só na 3ª, senão em_contato
-    const novoStatus = numeroDaTentativa === 3 ? 'sem_resposta' : 'em_contato'
+    // Definir novo status usando valores reais do enum StatusPaciente
+    const novoStatus = numeroDaTentativa === 3 ? 'aguardando_resposta' : 'contatado'
 
     // Atualizar paciente: status, tentativaAtual, ultimaTentativa e atualizadoEm
     await pool.query(

@@ -20,23 +20,35 @@ export async function GET() {
 
     const notificacoes: any[] = []
 
+    // Buscar configuração de risco e mensagens da clínica
+    const configRes = await pool.query(
+      `SELECT "diasRiscoMedio", "diasRiscoAlto", "diasRiscoCritico",
+              "diasEntreTentativa2", "diasEntreTentativa3"
+       FROM "ConfiguracaoMensagens"
+       WHERE "clinicaId" = $1`,
+      [clinicaId]
+    )
+    const diasRiscoCritico = parseInt(configRes.rows[0]?.diasRiscoCritico ?? 365)
+    const diasRiscoMedio = parseInt(configRes.rows[0]?.diasRiscoMedio ?? 180)
+    const diasFollowup = parseInt(configRes.rows[0]?.diasEntreTentativa2 ?? 3)
+
     // 1. RESUMO DO DIA
     const resumoRes = await pool.query(
       `SELECT
         COUNT(*) FILTER (WHERE
           "ultimaConsulta" IS NOT NULL AND
-          DATE_PART('day', NOW() - "ultimaConsulta") >= 180 AND
+          DATE_PART('day', NOW() - "ultimaConsulta") >= ${diasRiscoMedio} AND
           status::text NOT IN ('recuperado', 'nao_contatar')
         ) AS em_risco,
         COUNT(*) FILTER (WHERE
           status::text = 'ativo' AND
           "ultimaConsulta" IS NOT NULL AND
-          DATE_PART('day', NOW() - "ultimaConsulta") >= 180 AND
+          DATE_PART('day', NOW() - "ultimaConsulta") >= ${diasRiscoMedio} AND
           "tentativaAtual" = 0
         ) AS aguardando_contato,
         COALESCE(SUM(
           CASE WHEN "ultimaConsulta" IS NOT NULL AND
-            DATE_PART('day', NOW() - "ultimaConsulta") >= 180 AND
+            DATE_PART('day', NOW() - "ultimaConsulta") >= ${diasRiscoMedio} AND
             status::text NOT IN ('recuperado', 'nao_contatar')
           THEN "valorUltimaConsulta" ELSE 0 END
         ), 0) AS receita_recuperavel
@@ -60,8 +72,9 @@ export async function GET() {
       `SELECT COUNT(*) as total FROM "Paciente"
       WHERE "clinicaId" = $1
         AND "ultimaConsulta" IS NOT NULL
-        AND DATE_PART('day', NOW() - "ultimaConsulta") >= 365
-        AND status::text = 'ativo'`,
+        AND DATE_PART('day', NOW() - "ultimaConsulta") >= ${diasRiscoCritico}
+        AND status::text NOT IN ('recuperado', 'nao_contatar')
+        AND "tentativaAtual" = 0`,
       [clinicaId]
     )
     const totalCriticos = parseInt(totalCriticosRes.rows[0].total)
@@ -73,9 +86,10 @@ export async function GET() {
       FROM "Paciente"
       WHERE "clinicaId" = $1
         AND "ultimaConsulta" IS NOT NULL
-        AND DATE_PART('day', NOW() - "ultimaConsulta") >= 365
-        AND status::text = 'ativo'
-      ORDER BY "ultimaConsulta" ASC
+        AND DATE_PART('day', NOW() - "ultimaConsulta") >= ${diasRiscoCritico}
+        AND status::text NOT IN ('recuperado', 'nao_contatar')
+        AND "tentativaAtual" = 0
+      ORDER BY "ultimaConsulta" ASC 
       LIMIT 3`,
       [clinicaId]
     )
@@ -91,7 +105,6 @@ export async function GET() {
       })
     })
 
-    // Se tiver mais de 3, adiciona item "ver mais"
     if (totalCriticos > 3) {
       notificacoes.push({
         id: "critico-mais",
@@ -101,20 +114,13 @@ export async function GET() {
       })
     }
 
-    // 4. FOLLOW-UP — busca o intervalo configurado pela clínica
-    const configRes = await pool.query(
-      `SELECT "diasEntreTentativa2", "diasEntreTentativa3"
-       FROM "ConfiguracaoMensagens" WHERE "clinicaId" = $1`,
-      [clinicaId]
-    )
-    const diasFollowup = parseInt(configRes.rows[0]?.diasEntreTentativa2 || 3)
-
+    // 4. FOLLOW-UP
     const totalFollowupRes = await pool.query(
       `SELECT COUNT(*) as total
       FROM "Paciente" p
       INNER JOIN "ContactAttempt" ca ON ca."pacienteId" = p.id
       WHERE p."clinicaId" = $1
-        AND p.status::text = 'contatado'
+        AND p.status::text NOT IN ('recuperado', 'nao_contatar')
         AND p."tentativaAtual" < 3
       GROUP BY p.id
       HAVING DATE_PART('day', NOW() - MAX(ca."criadoEm")) >= $2`,
@@ -128,7 +134,7 @@ export async function GET() {
       FROM "Paciente" p
       INNER JOIN "ContactAttempt" ca ON ca."pacienteId" = p.id
       WHERE p."clinicaId" = $1
-        AND p.status::text = 'contatado'
+        AND p.status::text NOT IN ('recuperado', 'nao_contatar')
         AND p."tentativaAtual" < 3
       GROUP BY p.id, p.nome, p."tentativaAtual"
       HAVING DATE_PART('day', NOW() - MAX(ca."criadoEm")) >= $2
@@ -200,7 +206,6 @@ export async function GET() {
       })
     }
 
-    // Badge = críticos + followups (ações pendentes)
     const badgeCount = totalCriticos + totalFollowup
 
     return Response.json({ notificacoes, badgeCount })
