@@ -184,8 +184,7 @@ export default function DashboardPage() {
 
     // Mostra apenas na primeira vez
     if (!jaViuBanner) {
-      setShowWelcomeBanner(true)
-      localStorage.setItem(key, "true")
+    setShowWelcomeBanner(true)
     } else {
       setShowWelcomeBanner(false)
     }
@@ -596,7 +595,13 @@ export default function DashboardPage() {
                 </div>
               </div>
               <button
-                onClick={() => setShowWelcomeBanner(false)}
+                onClick={() => {
+                  setShowWelcomeBanner(false)
+                  const clinicaId = session?.user?.clinicaId
+                  if (clinicaId) {
+                    localStorage.setItem(`onboarding_done_${clinicaId}`, "true")
+                  }
+                }}
                 className="text-[#64748B] hover:text-[#1E293B]"
               >
                 <X className="h-4 w-4" />
