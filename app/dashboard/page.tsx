@@ -137,7 +137,7 @@ const statusConfig: Record<string, { label: string; bgColor: string; textColor: 
 
 export default function DashboardPage() {
   const router = useRouter()
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const [activeNav, setActiveNav] = useState("dashboard")
   const [searchQuery, setSearchQuery] = useState("")
   const [showSearchDropdown, setShowSearchDropdown] = useState(false)
@@ -163,35 +163,44 @@ export default function DashboardPage() {
   const userInitial = userName[0]?.toUpperCase() || "U"
 
   useEffect(() => {
-  if (!session?.user) return
+    // Espera a sessão terminar de carregar
+    if (status !== "authenticated") return
 
-  const clinicaId = (session.user as any)?.clinicaId
+    const clinicaId = session?.user?.clinicaId
 
-  if (!clinicaId) return
+    // Segurança extra
+    if (!clinicaId) {
+      console.warn("clinicaId não encontrado")
+      return
+    }
 
-  const key = `onboarding_done_${clinicaId}`
-  const jaViuBanner = localStorage.getItem(key)
+    const key = `onboarding_done_${clinicaId}`
+    const jaViuBanner = window.localStorage.getItem(key)
 
-  if (jaViuBanner !== "true") {
-    setShowWelcomeBanner(true)
-    localStorage.setItem(key, "true")
-  }
+    // Só mostra se nunca viu
+    if (!jaViuBanner) {
+      setShowWelcomeBanner(true)
+      window.localStorage.setItem(key, "true")
+    } else {
+      setShowWelcomeBanner(false)
+    }
 
-  setActiveNav("dashboard")
+    setActiveNav("dashboard")
 
-  fetch("/api/pacientes")
-    .then(res => res.json())
-    .then(data => setTodosPacientes(data))
-    .catch(() => {})
+    fetch("/api/pacientes")
+      .then(res => res.json())
+      .then(data => setTodosPacientes(data))
+      .catch(() => {})
 
-  fetch("/api/notificacoes")
-    .then(res => res.json())
-    .then(data => {
-      setNotificacoes(data.notificacoes || [])
-      setBadgeCount(data.badgeCount || 0)
-    })
-    .catch(() => {})
-}, [session])
+    fetch("/api/notificacoes")
+      .then(res => res.json())
+      .then(data => {
+        setNotificacoes(data.notificacoes || [])
+        setBadgeCount(data.badgeCount || 0)
+      })
+      .catch(() => {})
+
+  }, [status, session])
 
   useEffect(() => {
     setCarregando(true)

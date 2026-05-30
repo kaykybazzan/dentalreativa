@@ -48,19 +48,21 @@ const authOptions: AuthOptions = {
   ],
   callbacks: {
     async jwt({ token, user }) {
-  if (user) {
-    token.email = user.email
-    token.clinicaId = (user as any).clinicaId
-    token.clinicaNome = (user as any).clinicaNome
-  }
-  return token
-},
-async session({ session, token }) {
-  session.user.email = token.email as string
-  ;(session.user as any).clinicaId = token.clinicaId
-  ;(session.user as any).clinicaNome = token.clinicaNome
-  return session
-}
+      if (user) {
+        token.email = user.email
+        token.clinicaId = user.clinicaId
+        token.clinicaNome = user.clinicaNome
+      }
+      return token
+    },
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.email = token.email as string
+        session.user.clinicaId = token.clinicaId
+        session.user.clinicaNome = token.clinicaNome
+      }
+      return session
+    }
   },
   pages: {
     signIn: '/'
