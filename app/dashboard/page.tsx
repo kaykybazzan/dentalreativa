@@ -163,44 +163,49 @@ export default function DashboardPage() {
   const userInitial = userName[0]?.toUpperCase() || "U"
 
   useEffect(() => {
-    // Espera a sessão terminar de carregar
-    if (status !== "authenticated") return
+  // Aguarda a sessão terminar de carregar
+  if (status === "loading") return
 
-    const clinicaId = session?.user?.clinicaId
+  // Se não estiver autenticado, não faz nada
+  if (status !== "authenticated" || !session?.user) return
 
-    // Segurança extra
-    if (!clinicaId) {
-      console.warn("clinicaId não encontrado")
-      return
-    }
+  const clinicaId = session.user.clinicaId
 
+  // Evita rodar sem ID da clínica
+  if (!clinicaId) {
+    console.warn("clinicaId não encontrado")
+    return
+  }
+
+  // Garante que só roda no browser
+  if (typeof window !== "undefined") {
     const key = `onboarding_done_${clinicaId}`
-    const jaViuBanner = window.localStorage.getItem(key)
+    const jaViuBanner = localStorage.getItem(key)
 
-    // Só mostra se nunca viu
+    // Mostra apenas na primeira vez
     if (!jaViuBanner) {
       setShowWelcomeBanner(true)
-      window.localStorage.setItem(key, "true")
+      localStorage.setItem(key, "true")
     } else {
       setShowWelcomeBanner(false)
     }
+  }
 
-    setActiveNav("dashboard")
+  setActiveNav("dashboard")
 
-    fetch("/api/pacientes")
-      .then(res => res.json())
-      .then(data => setTodosPacientes(data))
-      .catch(() => {})
+  fetch("/api/pacientes")
+    .then((res) => res.json())
+    .then((data) => setTodosPacientes(data))
+    .catch(() => {})
 
-    fetch("/api/notificacoes")
-      .then(res => res.json())
-      .then(data => {
-        setNotificacoes(data.notificacoes || [])
-        setBadgeCount(data.badgeCount || 0)
-      })
-      .catch(() => {})
-
-  }, [status, session])
+  fetch("/api/notificacoes")
+    .then((res) => res.json())
+    .then((data) => {
+      setNotificacoes(data.notificacoes || [])
+      setBadgeCount(data.badgeCount || 0)
+    })
+    .catch(() => {})
+  }, [status, session?.user?.clinicaId])
 
   useEffect(() => {
     setCarregando(true)
