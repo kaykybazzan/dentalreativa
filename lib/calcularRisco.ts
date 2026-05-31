@@ -16,8 +16,10 @@ export interface PacienteComRisco {
 }
 
 export function calcularDiasSemConsulta(ultimaConsulta: string | Date): number {
-  const hoje = new Date()
-  const hojeData = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate())
+  // Força o "hoje" no fuso de São Paulo para compatibilidade com Vercel (UTC)
+  const hojeStr = new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })
+  const [diaH, mesH, anoH] = hojeStr.split("/").map(Number)
+  const hojeData = new Date(anoH, mesH - 1, diaH)
 
   let consultaData: Date
   if (typeof ultimaConsulta === "string") {
