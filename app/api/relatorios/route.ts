@@ -84,10 +84,29 @@ export async function GET(req: Request) {
     // ── RECEITA RECUPERADA ───────────────────────────────────
     // Soma real dos valores dos ContactAttempts com valorRecuperado > 0
     const receitaRecuperadaResult = await pool.query(
-      `SELECT COALESCE(SUM(ca."valorRecuperado"), 0) as total
-       FROM "ContactAttempt" ca
-       WHERE ca."clinicaId" = $1 AND ca."valorRecuperado" > 0`,
-      [clinicaId]
+      `SELECT COALESCE(
+         -- Soma dos ContactAttempts com valor informado
+         (SELECT SUM(ca."valorRecuperado")
+          FROM "ContactAttempt" ca
+          WHERE ca."clinicaId" = $1 AND ca."valorRecuperado" > 0),
+         0
+       ) +
+       COALESCE(
+         -- Pacientes recuperados SEM ContactAttempt com valor
+         -- usa valorUltimaConsulta como fallback
+         (SELECT SUM(COALESCE(p."valorUltimaConsulta", $2))
+          FROM "Paciente" p
+          WHERE p."clinicaId" = $1
+            AND p.status::text = 'recuperado'
+            AND NOT EXISTS (
+              SELECT 1 FROM "ContactAttempt" ca
+              WHERE ca."pacienteId" = p.id
+                AND ca."clinicaId" = $1
+                AND ca."valorRecuperado" > 0
+            )),
+         0
+       ) AS total`,
+      [clinicaId, ticketMedio]
     );
     const receitaRecuperadaBruta = parseFloat(receitaRecuperadaResult.rows[0]?.total) || 0;
 
@@ -138,9 +157,7 @@ export async function GET(req: Request) {
     const recuperadosComContatoNum = parseInt(recuperadosComContato.rows[0]?.total) || 0;
 
     const recuperadosViaContato = parseInt(recuperadosComContato.rows[0]?.total) || 0;
-    const receitaRecuperada = receitaRecuperadaBruta > 0
-      ? receitaRecuperadaBruta
-      : recuperadosViaContato * ticketMedio;
+    const receitaRecuperada = receitaRecuperadaBruta;
     const taxaSucesso = totalContatadosNum > 0
       ? ((recuperadosViaContato / totalContatadosNum) * 100).toFixed(1)
       : "0.0";
@@ -189,15 +206,15 @@ export async function GET(req: Request) {
     const recuperadosResult = await pool.query(
       `SELECT 
          p.id, p.nome, p.telefone, p."ultimaConsulta",
-         SUM(ca."valorRecuperado") as valor_total,
-         MAX(ca."criadoEm") as data_recuperacao,
+         COALESCE(SUM(ca."valorRecuperado"), p."valorUltimaConsulta", $2) as valor_total,
+         COALESCE(MAX(ca."criadoEm"), p."atualizadoEm") as data_recuperacao,
          COUNT(ca.id) as tentativas_necessarias
        FROM "Paciente" p
-       INNER JOIN "ContactAttempt" ca ON ca."pacienteId" = p.id
+       LEFT JOIN "ContactAttempt" ca ON ca."pacienteId" = p.id
        WHERE p."clinicaId" = $1 AND p.status::text = 'recuperado'
-       GROUP BY p.id, p.nome, p.telefone, p."ultimaConsulta"
-       ORDER BY MAX(ca."criadoEm") DESC`,
-      [clinicaId]
+       GROUP BY p.id, p.nome, p.telefone, p."ultimaConsulta", p."valorUltimaConsulta", p."atualizadoEm"
+       ORDER BY COALESCE(MAX(ca."criadoEm"), p."atualizadoEm") DESC`,
+      [clinicaId, ticketMedio]
     );
 
     // ── PERFORMANCE DAS MENSAGENS POR TENTATIVA ────────────────

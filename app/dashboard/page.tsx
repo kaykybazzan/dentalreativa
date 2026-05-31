@@ -179,12 +179,15 @@ export default function DashboardPage() {
 
   // Garante que só roda no browser
   if (typeof window !== "undefined") {
+    // Limpa chave inválida gravada em sessões anteriores com clinicaId undefined
+    localStorage.removeItem("onboarding_done_undefined")
+
     const key = `onboarding_done_${clinicaId}`
     const jaViuBanner = localStorage.getItem(key)
 
-    // Mostra apenas na primeira vez
     if (!jaViuBanner) {
-    setShowWelcomeBanner(true)
+      setShowWelcomeBanner(true)
+      localStorage.setItem(key, "true") // grava imediatamente com clinicaId garantido
     } else {
       setShowWelcomeBanner(false)
     }

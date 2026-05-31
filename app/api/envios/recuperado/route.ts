@@ -107,30 +107,46 @@ export async function POST(req: Request) {
 
     } else {
       // acao === "recuperado" (padrão — paciente voltou)
+      const valorFinal = valorRecuperado ?? 0
+      console.log("[recuperado] valor recebido:", valorFinal, "pacienteId:", pacienteId)
+
       await pool.query(
         `UPDATE "Paciente" SET
           status = 'recuperado'::"StatusPaciente",
-          "ultimaConsulta" = NOW(),
+          "ultimaConsulta" = (NOW() AT TIME ZONE 'America/Sao_Paulo')::date,
           "tentativaAtual" = 0,
           "ultimaTentativa" = NULL,
           "vaiMarcar" = FALSE,
+          "valorUltimaConsulta" = CASE WHEN $3 > 0 THEN $3 ELSE "valorUltimaConsulta" END,
           "atualizadoEm" = NOW()
         WHERE id = $1 AND "clinicaId" = $2`,
+        [pacienteId, clinicaId, valorFinal]
+      )
+
+      // Verifica se existe ContactAttempt para atualizar
+      const caExiste = await pool.query(
+        `SELECT id FROM "ContactAttempt"
+         WHERE "pacienteId" = $1 AND "clinicaId" = $2
+         ORDER BY "criadoEm" DESC LIMIT 1`,
         [pacienteId, clinicaId]
       )
 
-      // Atualiza o último ContactAttempt como recuperado
-      await pool.query(
-        `UPDATE "ContactAttempt"
-         SET tipo = 'recuperado', "valorRecuperado" = $1
-         WHERE id = (
-           SELECT id FROM "ContactAttempt"
-           WHERE "pacienteId" = $2 AND "clinicaId" = $3
-           ORDER BY "criadoEm" DESC
-           LIMIT 1
-         )`,
-        [valorRecuperado ?? 0, pacienteId, clinicaId]
-      )
+      if (caExiste.rows.length > 0) {
+        await pool.query(
+          `UPDATE "ContactAttempt"
+           SET tipo = 'recuperado', "valorRecuperado" = $1
+           WHERE id = $2`,
+          [valorFinal, caExiste.rows[0].id]
+        )
+      } else {
+        // Sem ContactAttempt — insere um registro de recuperação direta
+        await pool.query(
+          `INSERT INTO "ContactAttempt"
+           ("pacienteId", "clinicaId", "tentativaNumero", tipo, "valorRecuperado", "criadoEm")
+           VALUES ($1, $2, 1, 'recuperado', $3, NOW())`,
+          [pacienteId, clinicaId, valorFinal]
+        )
+      }
     }
 
     return Response.json({ success: true })

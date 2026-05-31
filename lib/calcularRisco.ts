@@ -15,16 +15,25 @@ export interface PacienteComRisco {
   diasSemResposta?: number | null;
 }
 
-// Calcula quantos dias se passaram desde a última consulta
 export function calcularDiasSemConsulta(ultimaConsulta: string | Date): number {
-  const hoje = new Date();
-  const consulta = new Date(ultimaConsulta);
-  const diffMs = hoje.getTime() - consulta.getTime();
-  const diffDias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  return diffDias;
+  const hoje = new Date()
+  const hojeData = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate())
+
+  let consultaData: Date
+  if (typeof ultimaConsulta === "string") {
+    // String "YYYY-MM-DD" — parseia manualmente para evitar interpretação UTC
+    const [ano, mes, dia] = ultimaConsulta.slice(0, 10).split("-").map(Number)
+    consultaData = new Date(ano, mes - 1, dia)
+  } else {
+    consultaData = new Date(ultimaConsulta.getFullYear(), ultimaConsulta.getMonth(), ultimaConsulta.getDate())
+  }
+
+  const diffMs = hojeData.getTime() - consultaData.getTime()
+  const diffDias = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+  return Math.max(0, diffDias)
 }
 
-// Configuração de risco da clínica — valores padrão usados se não vier do banco
+
 export interface ConfigRisco {
   diasRiscoMedio: number
   diasRiscoAlto: number
@@ -37,7 +46,6 @@ export const configRiscoPadrao: ConfigRisco = {
   diasRiscoCritico: 365,
 }
 
-// Classifica o nível de risco baseado nos dias sem consulta
 export function classificarRisco(dias: number, config: ConfigRisco = configRiscoPadrao): NivelRisco {
   if (dias >= config.diasRiscoCritico) return "critico";
   if (dias >= config.diasRiscoAlto)    return "alto";
@@ -45,10 +53,6 @@ export function classificarRisco(dias: number, config: ConfigRisco = configRisco
   return "ok";
 }
 
-// Aplica risco a um array de pacientes
-// IMPORTANTE: exclui pacientes com dadosIncompletos = true
-// IMPORTANTE: exclui pacientes com status = 'nao_contatar'
-// IMPORTANTE: exclui pacientes com status = 'recuperado'
 export function aplicarRisco(
   pacientes: any[],
   config: ConfigRisco = configRiscoPadrao
@@ -72,5 +76,5 @@ export function aplicarRisco(
         dadosIncompletos: p.dadosIncompletos,
       };
     })
-    .sort((a, b) => b.diasSemConsulta - a.diasSemConsulta); // mais urgentes primeiro
+    .sort((a, b) => b.diasSemConsulta - a.diasSemConsulta);
 }

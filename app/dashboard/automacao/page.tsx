@@ -238,13 +238,18 @@ export default function AutomacaoPage() {
   }
 
   const handlePacienteVoltou = async (paciente: PacienteFila) => {
+    // Usa estimatedValue como fallback pois valorTicket pode estar zerado
+    const valorBase = paciente.estimatedValue > 0
+      ? paciente.estimatedValue
+      : paciente.valorTicket
+
     const valorStr = window.prompt(
-      `Qual o valor da consulta de ${paciente.name}?\n(deixe em branco para usar R$ ${paciente.valorTicket.toFixed(2).replace(".", ",")})`
+      `Qual o valor da consulta de ${paciente.name}?\n(deixe em branco para usar R$ ${valorBase.toFixed(2).replace(".", ",")})`
     )
     if (valorStr === null) return
 
     const valor = valorStr.trim() === ""
-      ? paciente.valorTicket
+      ? valorBase
       : parseFloat(valorStr.replace(",", "."))
 
     if (isNaN(valor)) {
