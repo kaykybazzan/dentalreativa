@@ -110,17 +110,21 @@ export async function POST(req: Request) {
       const valorFinal = valorRecuperado ?? 0
       console.log("[recuperado] valor recebido:", valorFinal, "pacienteId:", pacienteId)
 
+      // Calcula a data atual no fuso de São Paulo no Node.js
+      const hojeStr = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" })
+      // hojeStr = "2026-05-30" — formato YYYY-MM-DD garantido pelo locale sv-SE
+
       await pool.query(
         `UPDATE "Paciente" SET
           status = 'recuperado'::"StatusPaciente",
-          "ultimaConsulta" = (NOW() AT TIME ZONE 'America/Sao_Paulo')::date,
+          "ultimaConsulta" = $4,
           "tentativaAtual" = 0,
           "ultimaTentativa" = NULL,
           "vaiMarcar" = FALSE,
           "valorUltimaConsulta" = CASE WHEN $3 > 0 THEN $3 ELSE "valorUltimaConsulta" END,
           "atualizadoEm" = NOW()
         WHERE id = $1 AND "clinicaId" = $2`,
-        [pacienteId, clinicaId, valorFinal]
+        [pacienteId, clinicaId, valorFinal, hojeStr]
       )
 
       // Verifica se existe ContactAttempt para atualizar
