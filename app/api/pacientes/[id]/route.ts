@@ -105,6 +105,25 @@ export async function PUT(
       updates.push(`"dadosIncompletos" = false`)
     }
 
+    // FIX: se o paciente é "recuperado" e a ultimaConsulta editada tem 30+ dias,
+    // já converte para "ativo" na hora — sem esperar o cron
+    if (ultimaConsulta && !status) {
+      const dataConsulta = new Date(ultimaConsulta)
+      const limite = new Date()
+      limite.setDate(limite.getDate() - 30)
+
+      // Busca o status atual do paciente
+      const pacienteAtual = await pool.query(
+        `SELECT status FROM "Paciente" WHERE id = $1 AND "clinicaId" = $2`,
+        [id, clinicaId]
+      )
+      const statusAtual = pacienteAtual.rows[0]?.status
+
+      if (statusAtual === "recuperado" && dataConsulta <= limite) {
+        updates.push(`status = 'ativo'::"StatusPaciente"`)
+      }
+    }
+
     updates.push(`"atualizadoEm" = NOW()`)
 
     values.push(id, clinicaId)
