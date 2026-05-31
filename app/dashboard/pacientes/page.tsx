@@ -157,6 +157,7 @@ export default function PatientsPage() {
 
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const dateInputRef = useRef<HTMLInputElement>(null)
 
   // Toast
   const [toast, setToast] = useState<{ show: boolean; message: string }>({ show: false, message: "" })
@@ -630,7 +631,7 @@ const [mensagem1, setMensagem1] = useState("")
     setEditingPatient(patient)
     setEditForm({
       name: patient.name,
-      phone: patient.phone,
+      phone: patient.phone ? formatPhoneInput(patient.phone.replace(/^55/, '')) : '',
       lastVisit: patient.rawUltimaConsulta || '',
       procedure: patient.procedimento || '',
       value: patient.avgTicket ? String(patient.avgTicket) : ''
@@ -641,7 +642,8 @@ const [mensagem1, setMensagem1] = useState("")
   const handleSaveEdit = async () => {
     if (!editingPatient) return
 
-    if (editForm.phone && !validarTelefone(editForm.phone)) {
+    const telefoneAlterado = editForm.phone !== (editingPatient?.phone || '')
+    if (telefoneAlterado && editForm.phone && !validarTelefone(editForm.phone)) {
       showToast("Telefone inválido. Digite DDD + número. Ex: (47) 99999-0000")
       return
     }
@@ -649,14 +651,16 @@ const [mensagem1, setMensagem1] = useState("")
     const telefoneNormalizado = editForm.phone ? normalizarParaWhatsApp(editForm.phone) : undefined
 
     try {
-      const response = await fetch(`/api/pacientes/${editingPatient.id}`, {
+        console.log('editForm.lastVisit:', editForm.lastVisit)
+        console.log('rawUltimaConsulta:', editingPatient?.rawUltimaConsulta)
+        const response = await fetch(`/api/pacientes/${editingPatient.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           nome: editForm.name,
           telefone: telefoneNormalizado,
           telefoneBruto: editForm.phone,
-          ultimaConsulta: editForm.lastVisit || undefined,
+          ultimaConsulta: editForm.lastVisit || editingPatient?.rawUltimaConsulta || undefined,
           procedimento: editForm.procedure || undefined,
           valorUltimaConsulta: editForm.value ? parseFloat(editForm.value) : undefined,
         })
@@ -1447,9 +1451,10 @@ const [mensagem1, setMensagem1] = useState("")
             <div>
               <label className="text-sm font-medium text-[#1E293B] mb-1.5 block">Data da última consulta</label>
               <input
-                type="date"
-                value={editForm.lastVisit}
-                onChange={(e) => setEditForm(prev => ({ ...prev, lastVisit: e.target.value }))}
+              ref={dateInputRef}
+              type="date"
+              value={editForm.lastVisit}
+              onChange={(e) => setEditForm(prev => ({ ...prev, lastVisit: e.target.value }))}
                 max={new Date().toISOString().split("T")[0]}
                 className="w-full h-11 px-3 rounded-lg border border-[#E2E8F0] text-sm text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#0F3460] focus:border-transparent"
               />

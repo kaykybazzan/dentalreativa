@@ -279,7 +279,7 @@ useEffect(() => {
                     <div className="flex flex-col gap-0.5">
                       <p className="text-[12px] text-white/80 flex items-center gap-1.5">
                         <Users className="h-3.5 w-3.5" />
-                        {carregando ? "..." : `${dados?.funil?.recuperados ?? 0} via contato · ${(dados?.metricas?.totalRecuperados ?? 0) - (dados?.funil?.recuperados ?? 0)} espontâneos`}
+                        {carregando ? "..." : `${dados?.funil?.recuperados ?? 0} via contato · ${dados?.metricas?.totalEspontaneos ?? 0} espontâneos`}
                       </p>
                     </div>
                   </div>
@@ -327,8 +327,8 @@ useEffect(() => {
                 <div>
                   <p className="text-[11px] uppercase text-[#64748B] font-medium tracking-wide">Ticket médio recuperado</p>
                   <p className="text-[22px] font-bold text-[#1E293B] leading-tight mt-0.5">
-                    {dados?.metricas?.totalContatados > 0
-                      ? `R$ ${(dados.metricas.receitaRecuperada / dados.metricas.totalContatados).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
+                    {(dados?.funil?.recuperados ?? 0) + (dados?.metricas?.totalEspontaneos ?? 0) > 0
+                      ? `R$ ${(dados.metricas.receitaRecuperada / ((dados.funil.recuperados ?? 0) + (dados.metricas.totalEspontaneos ?? 0))).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
                       : "—"}
                   </p>
                   <p className="text-[12px] text-[#64748B] mt-0.5">por paciente recuperado</p>

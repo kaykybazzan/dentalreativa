@@ -88,7 +88,7 @@ export async function GET(req: Request) {
          -- Soma dos ContactAttempts com valor informado
          (SELECT SUM(ca."valorRecuperado")
           FROM "ContactAttempt" ca
-          WHERE ca."clinicaId" = $1 AND ca."valorRecuperado" > 0),
+          WHERE ca."clinicaId" = $1 AND ca."valorRecuperado" > 0 AND ca.tipo != 'espontaneo'),
          0
        ) +
        COALESCE(
@@ -103,6 +103,13 @@ export async function GET(req: Request) {
               WHERE ca."pacienteId" = p.id
                 AND ca."clinicaId" = $1
                 AND ca."valorRecuperado" > 0
+                AND ca.tipo != 'espontaneo'
+            )
+            AND NOT EXISTS (
+              SELECT 1 FROM "ContactAttempt" ca
+              WHERE ca."pacienteId" = p.id
+                AND ca."clinicaId" = $1
+                AND ca.tipo = 'espontaneo'
             )),
          0
        ) AS total`,
@@ -123,15 +130,15 @@ export async function GET(req: Request) {
     // Quantos foram contatados, quantos responderam, quantos recuperados
     const totalContatados = await pool.query(
       `SELECT COUNT(DISTINCT "pacienteId") as total
-       FROM "ContactAttempt"
-       WHERE "clinicaId" = $1`,
+      FROM "ContactAttempt"
+      WHERE "clinicaId" = $1 AND tipo != 'espontaneo'`,
       [clinicaId]
     );
 
     const totalEnvios = await pool.query(
       `SELECT COUNT(*) as total
        FROM "ContactAttempt"
-       WHERE "clinicaId" = $1`,
+       WHERE "clinicaId" = $1 AND tipo != 'espontaneo'`,
       [clinicaId]
     );
 
@@ -148,16 +155,27 @@ export async function GET(req: Request) {
     const totalContatadosNum = parseInt(totalContatados.rows[0]?.total) || 0;
 
     const recuperadosComContato = await pool.query(
-      `SELECT COUNT(DISTINCT p.id) as total
-       FROM "Paciente" p
-       INNER JOIN "ContactAttempt" ca ON ca."pacienteId" = p.id
-       WHERE p."clinicaId" = $1 AND p.status::text = 'recuperado'`,
-      [clinicaId]
+    `SELECT COUNT(DISTINCT p.id) as total
+    FROM "Paciente" p
+    INNER JOIN "ContactAttempt" ca ON ca."pacienteId" = p.id
+    WHERE p."clinicaId" = $1 
+      AND p.status::text = 'recuperado'
+      AND ca.tipo != 'espontaneo'`,
+  [clinicaId]
     );
     const recuperadosComContatoNum = parseInt(recuperadosComContato.rows[0]?.total) || 0;
 
+    // NOVO — conta espontâneos separado para exibir no card
+    const espontaneosResult = await pool.query(
+      `SELECT COUNT(DISTINCT "pacienteId") as total
+      FROM "ContactAttempt"
+      WHERE "clinicaId" = $1 AND tipo = 'espontaneo'`,
+      [clinicaId]
+    )
+    const totalEspontaneos = parseInt(espontaneosResult.rows[0]?.total) || 0
+
     const recuperadosViaContato = parseInt(recuperadosComContato.rows[0]?.total) || 0;
-    const receitaRecuperada = receitaRecuperadaBruta;
+const receitaRecuperada = receitaRecuperadaBruta;
     const taxaSucesso = totalContatadosNum > 0
       ? ((recuperadosViaContato / totalContatadosNum) * 100).toFixed(1)
       : "0.0";
@@ -173,6 +191,7 @@ export async function GET(req: Request) {
        FROM "ContactAttempt" ca
        INNER JOIN "Paciente" p ON p.id = ca."pacienteId"
        WHERE ca."clinicaId" = $1
+         AND ca.tipo != 'espontaneo'
          ${filtroPeriodo}
        GROUP BY DATE_TRUNC('month', ca."criadoEm")
        ORDER BY DATE_TRUNC('month', ca."criadoEm") ASC`,
@@ -225,7 +244,7 @@ export async function GET(req: Request) {
          COUNT(*) FILTER (WHERE p.status::text = 'recuperado') as total_recuperados
        FROM "ContactAttempt" ca
        INNER JOIN "Paciente" p ON p.id = ca."pacienteId"
-       WHERE ca."clinicaId" = $1
+       WHERE ca."clinicaId" = $1 AND ca.tipo != 'espontaneo'
        GROUP BY ca."tentativaNumero"
        ORDER BY ca."tentativaNumero" ASC`,
       [clinicaId]
@@ -260,7 +279,7 @@ export async function GET(req: Request) {
        INNER JOIN (
          SELECT "pacienteId", MIN("criadoEm") as "criadoEm"
          FROM "ContactAttempt"
-         WHERE "clinicaId" = $1
+         WHERE "clinicaId" = $1   AND tipo != 'espontaneo'
          GROUP BY "pacienteId"
        ) primeiro_contato ON primeiro_contato."pacienteId" = p.id
        WHERE p."clinicaId" = $1
@@ -286,6 +305,7 @@ export async function GET(req: Request) {
         totalEnvios: parseInt(totalEnvios.rows[0]?.total) || 0,
         totalContatados: totalContatadosNum,
         tempoMedioRetorno,
+        totalEspontaneos,
       },
       funil: {
         emRisco: totalPassaramPeloRisco,

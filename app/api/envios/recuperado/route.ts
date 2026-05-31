@@ -149,27 +149,45 @@ export async function POST(req: Request) {
         [pacienteId, clinicaId]
       )
 
-      if (caExiste.rows.length > 0) {
+      const ehEspontaneo = body.espontaneo === true
+
+      if (ehEspontaneo) {
+        // Paciente voltou sozinho — sempre insere como espontâneo, nunca altera CA existente
+        const valorParaGravar = valorFinal > 0 ? valorFinal : (
+          await pool.query(
+            `SELECT COALESCE("valorUltimaConsulta", 0) as valor FROM "Paciente" WHERE id = $1`,
+            [pacienteId]
+          )
+        ).rows[0]?.valor ?? 0
+
+        await pool.query(
+          `INSERT INTO "ContactAttempt"
+          ("pacienteId", "clinicaId", "tentativaNumero", tipo, "valorRecuperado", "criadoEm")
+          VALUES ($1, $2, 0, 'espontaneo', $3, NOW())`,
+          [pacienteId, clinicaId, valorParaGravar]
+        )
+      } else if (caExiste.rows.length > 0) {
         await pool.query(
           `UPDATE "ContactAttempt"
-           SET tipo = 'recuperado', "valorRecuperado" = $1
-           WHERE id = $2`,
+          SET tipo = 'recuperado', "valorRecuperado" = $1
+          WHERE id = $2`,
           [valorFinal, caExiste.rows[0].id]
         )
       } else {
-        // Sem ContactAttempt — insere um registro de recuperação direta
         await pool.query(
           `INSERT INTO "ContactAttempt"
-           ("pacienteId", "clinicaId", "tentativaNumero", tipo, "valorRecuperado", "criadoEm")
-           VALUES ($1, $2, 1, 'recuperado', $3, NOW())`,
+          ("pacienteId", "clinicaId", "tentativaNumero", tipo, "valorRecuperado", "criadoEm")
+          VALUES ($1, $2, 0, 'espontaneo', $3, NOW())`,
           [pacienteId, clinicaId, valorFinal]
         )
       }
-    }
+    }  // ← fecha o bloco else principal (acao === "recuperado")
 
     return Response.json({ success: true })
+
   } catch (error) {
     console.error("[recuperado] erro:", error)
     return Response.json({ error: "Erro ao processar ação" }, { status: 500 })
   }
 }
+

@@ -27,19 +27,7 @@ export async function PUT(
     if (!clinicaId) {
       return Response.json({ error: "Clínica não encontrada" }, { status: 404 })
     }
-
-    // Validar data futura
-    if (ultimaConsulta) {
-      const dataInformada = new Date(ultimaConsulta)
-      const hoje = new Date()
-      hoje.setHours(23, 59, 59, 999)
-      if (dataInformada > hoje) {
-        return Response.json(
-          { error: "A data da última consulta não pode ser posterior a hoje." },
-          { status: 400 }
-        )
-      }
-    }
+    
 
     const updates: string[] = []
     const values: any[] = []
@@ -53,8 +41,8 @@ export async function PUT(
     }
 
     if (ultimaConsulta !== undefined) {
-      updates.push(`"ultimaConsulta" = $${paramIndex}`)
-      values.push(ultimaConsulta || null)
+      updates.push(`"ultimaConsulta" = $${paramIndex}::date`)
+      values.push(ultimaConsulta ? String(ultimaConsulta).slice(0, 10) : null)
       paramIndex++
     }
 
@@ -128,12 +116,37 @@ export async function PUT(
 
     values.push(id, clinicaId)
 
+    console.log("UPDATE params:", JSON.stringify({ updates, values, id, clinicaId }))
     await pool.query(
       `UPDATE "Paciente"
-       SET ${updates.join(", ")}
-       WHERE id = $${paramIndex} AND "clinicaId" = $${paramIndex + 1}`,
+      SET ${updates.join(", ")}
+      WHERE id = $${paramIndex} AND "clinicaId" = $${paramIndex + 1}`,
       values
     )
+
+    // Se marcou como recuperado via edição direta = espontâneo
+    // Grava ContactAttempt só se não existia nenhum contato anterior
+    if (status === "recuperado") {
+      const caExiste = await pool.query(
+        `SELECT id FROM "ContactAttempt"
+         WHERE "pacienteId" = $1 AND "clinicaId" = $2
+         LIMIT 1`,
+        [id, clinicaId]
+      )
+
+      if (caExiste.rows.length === 0) {
+        const valorConsulta = body.valorUltimaConsulta
+          ? parseFloat(String(body.valorUltimaConsulta))
+          : 0
+
+        await pool.query(
+          `INSERT INTO "ContactAttempt"
+           ("pacienteId", "clinicaId", "tentativaNumero", tipo, "valorRecuperado", "criadoEm")
+           VALUES ($1, $2, 0, 'espontaneo', $3, NOW())`,
+          [id, clinicaId, valorConsulta]
+        )
+      }
+    }
 
     return Response.json({ success: true })
   } catch (error) {
