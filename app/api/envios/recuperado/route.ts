@@ -2,6 +2,19 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 import { pool } from "@/lib/db"
 
+// ─── Helper: data de hoje no fuso de São Paulo como "YYYY-MM-DD" ──────────────
+// Usa Intl.DateTimeFormat para garantir que o resultado é sempre a data correta
+// em São Paulo, independente do fuso do servidor (Vercel roda em UTC).
+function hojeEmSaoPaulo(): string {
+  return new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date())
+  // Resultado: "2026-05-31" (sv-SE garante formato ISO YYYY-MM-DD)
+}
+
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.email) {
@@ -110,14 +123,15 @@ export async function POST(req: Request) {
       const valorFinal = valorRecuperado ?? 0
       console.log("[recuperado] valor recebido:", valorFinal, "pacienteId:", pacienteId)
 
-      // Calcula a data atual no fuso de São Paulo no Node.js
-      const hojeStr = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" })
-      // hojeStr = "2026-05-30" — formato YYYY-MM-DD garantido pelo locale sv-SE
+      // FIX: usa helper dedicado em vez de toLocaleDateString("sv-SE")
+      // toLocaleDateString pode variar entre runtimes; Intl.DateTimeFormat é confiável.
+      const hojeStr = hojeEmSaoPaulo()
+      console.log("[recuperado] data hoje SP:", hojeStr)
 
       await pool.query(
         `UPDATE "Paciente" SET
           status = 'recuperado'::"StatusPaciente",
-          "ultimaConsulta" = $4,
+          "ultimaConsulta" = $4::date,
           "tentativaAtual" = 0,
           "ultimaTentativa" = NULL,
           "vaiMarcar" = FALSE,

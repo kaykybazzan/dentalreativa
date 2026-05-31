@@ -163,50 +163,44 @@ export default function DashboardPage() {
   const userInitial = userName[0]?.toUpperCase() || "U"
 
   useEffect(() => {
-  // Aguarda a sessão terminar de carregar
-  if (status === "loading") return
+    if (status === "loading") return
+    if (status !== "authenticated" || !session?.user) return
 
-  // Se não estiver autenticado, não faz nada
-  if (status !== "authenticated" || !session?.user) return
+    const clinicaId = session.user.clinicaId
 
-  const clinicaId = session.user.clinicaId
-
-  // Evita rodar sem ID da clínica
-  if (!clinicaId) {
-    console.warn("clinicaId não encontrado")
-    return
-  }
-
-  // Garante que só roda no browser
-  if (typeof window !== "undefined") {
-    // Limpa chave inválida gravada em sessões anteriores com clinicaId undefined
-    localStorage.removeItem("onboarding_done_undefined")
-
-    const key = `onboarding_done_${clinicaId}`
-    const jaViuBanner = localStorage.getItem(key)
-
-    if (!jaViuBanner) {
-      setShowWelcomeBanner(true)
-      localStorage.setItem(key, "true") // grava imediatamente com clinicaId garantido
-    } else {
-      setShowWelcomeBanner(false)
+    if (!clinicaId) {
+      console.warn("clinicaId não encontrado")
+      return
     }
-  }
 
-  setActiveNav("dashboard")
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("onboarding_done_undefined")
 
-  fetch("/api/pacientes")
-    .then((res) => res.json())
-    .then((data) => setTodosPacientes(data))
-    .catch(() => {})
+      const key = `onboarding_done_${clinicaId}`
+      const jaViuBanner = localStorage.getItem(key)
 
-  fetch("/api/notificacoes")
-    .then((res) => res.json())
-    .then((data) => {
-      setNotificacoes(data.notificacoes || [])
-      setBadgeCount(data.badgeCount || 0)
-    })
-    .catch(() => {})
+      if (!jaViuBanner) {
+        setShowWelcomeBanner(true)
+        localStorage.setItem(key, "true")
+      } else {
+        setShowWelcomeBanner(false)
+      }
+    }
+
+    setActiveNav("dashboard")
+
+    fetch("/api/pacientes")
+      .then((res) => res.json())
+      .then((data) => setTodosPacientes(data))
+      .catch(() => {})
+
+    fetch("/api/notificacoes")
+      .then((res) => res.json())
+      .then((data) => {
+        setNotificacoes(data.notificacoes || [])
+        setBadgeCount(data.badgeCount || 0)
+      })
+      .catch(() => {})
   }, [status, session?.user?.clinicaId])
 
   useEffect(() => {
@@ -282,11 +276,11 @@ export default function DashboardPage() {
   }
 
   const searchResults = searchQuery.trim() === ""
-  ? []
-  : todosPacientes.filter((p: any) =>
-      p.nome?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.telefone?.includes(searchQuery)
-    )
+    ? []
+    : todosPacientes.filter((p: any) =>
+        p.nome?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.telefone?.includes(searchQuery)
+      )
 
   const handleWhatsApp = (phone: string, name: string) => {
     const mensagem = construirMensagem(
@@ -316,9 +310,9 @@ export default function DashboardPage() {
   }
 
   const getPriorityColor = (months: number) => {
-    if (months > 6) return "bg-[#EF4444]" // vermelho
-    if (months >= 4) return "bg-[#F59E0B]" // laranja
-    return "bg-[#FBBF24]" // amarelo
+    if (months > 6) return "bg-[#EF4444]"
+    if (months >= 4) return "bg-[#F59E0B]"
+    return "bg-[#FBBF24]"
   }
 
   const navItems = [
@@ -373,36 +367,48 @@ export default function DashboardPage() {
                   ) : (
                     <div className="divide-y divide-[#E2E8F0]">
                       {searchResults.map((patient: any) => {
-                      const config = statusConfig[patient.status] ?? { label: "Ativo", bgColor: "bg-[#F0FDF4]", textColor: "text-[#15803D]" }
-                      const ultimaConsulta = patient.ultimaConsulta ? new Date(patient.ultimaConsulta) : null
-                      const dias = ultimaConsulta
-                        ? Math.floor((Date.now() - ultimaConsulta.getTime()) / (1000 * 60 * 60 * 24))
-                        : 0
-                      return (
-                        <button
-                          key={patient.id}
-                          onClick={() => {
-                            setSearchQuery("")
-                            setShowSearchDropdown(false)
-                            router.push(`/dashboard/pacientes`)
-                          }}
-                          className="w-full p-3 hover:bg-[#F8FAFC] transition-colors text-left flex items-center gap-3"
-                        >
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#3B82F6] text-white text-sm font-semibold flex-shrink-0">
-                            {patient.nome?.[0]?.toUpperCase() ?? "?"}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-semibold text-[#1E293B]">{patient.nome}</p>
-                              <span className={`text-xs px-2 py-0.5 rounded-full ${config.bgColor} ${config.textColor} font-medium`}>
-                                {config.label}
-                              </span>
+                        const config = statusConfig[patient.status] ?? { label: "Ativo", bgColor: "bg-[#F0FDF4]", textColor: "text-[#15803D]" }
+
+                        // FIX: "hoje" no fuso de São Paulo — evita 1 dia a menos por UTC
+                        const hojeStr = new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Sao_Paulo" }).format(new Date())
+                        const [anoH, mesH, diaH] = hojeStr.split("-").map(Number)
+                        const hojeData = new Date(anoH, mesH - 1, diaH)
+
+                        // FIX: parse manual da data para evitar interpretação UTC e bug mm/dd/yyyy
+                        let dias = 0
+                        if (patient.ultimaConsulta) {
+                          const dataStr = String(patient.ultimaConsulta).slice(0, 10)
+                          const [ano, mes, dia] = dataStr.split("-").map(Number)
+                          const consultaData = new Date(ano, mes - 1, dia)
+                          const diffMs = hojeData.getTime() - consultaData.getTime()
+                          dias = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)))
+                        }
+
+                        return (
+                          <button
+                            key={patient.id}
+                            onClick={() => {
+                              setSearchQuery("")
+                              setShowSearchDropdown(false)
+                              router.push(`/dashboard/pacientes`)
+                            }}
+                            className="w-full p-3 hover:bg-[#F8FAFC] transition-colors text-left flex items-center gap-3"
+                          >
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#3B82F6] text-white text-sm font-semibold flex-shrink-0">
+                              {patient.nome?.[0]?.toUpperCase() ?? "?"}
                             </div>
-                            <p className="text-xs text-[#64748B] mt-0.5">{dias} dias sem consulta</p>
-                          </div>
-                        </button>
-                      )
-                    })}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-semibold text-[#1E293B]">{patient.nome}</p>
+                                <span className={`text-xs px-2 py-0.5 rounded-full ${config.bgColor} ${config.textColor} font-medium`}>
+                                  {config.label}
+                                </span>
+                              </div>
+                              <p className="text-xs text-[#64748B] mt-0.5">{dias} dias sem consulta</p>
+                            </div>
+                          </button>
+                        )
+                      })}
                     </div>
                   )}
                 </div>
@@ -412,19 +418,19 @@ export default function DashboardPage() {
             {/* Sino de notificações */}
             <div className="relative">
               <button
-              id="notif-button"
-              onClick={() => {
-                if (!showNotifications) {
-                  fetch("/api/notificacoes")
-                    .then(res => res.json())
-                    .then(data => {
-                      setNotificacoes(data.notificacoes || [])
-                      setBadgeCount(data.badgeCount || 0)
-                    })
-                    .catch(() => {})
-                }
-                setShowNotifications(!showNotifications)
-              }}
+                id="notif-button"
+                onClick={() => {
+                  if (!showNotifications) {
+                    fetch("/api/notificacoes")
+                      .then(res => res.json())
+                      .then(data => {
+                        setNotificacoes(data.notificacoes || [])
+                        setBadgeCount(data.badgeCount || 0)
+                      })
+                      .catch(() => {})
+                  }
+                  setShowNotifications(!showNotifications)
+                }}
                 className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-[#E2E8F0] bg-white text-[#64748B] hover:bg-[#F8FAFC] transition-colors"
               >
                 <Bell className="h-4 w-4" />
@@ -580,11 +586,8 @@ export default function DashboardPage() {
           </div>     
         </header>
 
-        
-
         {/* Main Content */}
         <main className="flex-1 overflow-auto p-6">
-          
           
           {showWelcomeBanner && (
             <div className="bg-[#F0FDF4] border border-[#BBF7D0] rounded-xl p-4 mb-4 flex items-center justify-between">
@@ -617,15 +620,15 @@ export default function DashboardPage() {
           <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-sm p-6">
             {/* Alert Banner */}
             <div className="bg-[#EFF6FF] border border-[#BFDBFE] rounded-xl p-4 mb-6 flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#3B82F6]/10">
-              <TrendingUp className="h-5 w-5 text-[#3B82F6]" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#3B82F6]/10">
+                <TrendingUp className="h-5 w-5 text-[#3B82F6]" />
+              </div>
+              <p className="text-sm text-[#3B82F6]">
+                <span className="font-semibold text-[#1E40AF]">{carregando ? "..." : `Você tem ${dados?.cards?.emRisco ?? 0} pacientes em risco`}</span> com potencial de <span className="font-semibold text-[#1E40AF]">{carregando ? "..." : `R$ ${dados?.cards?.receitaEmRisco?.toLocaleString("pt-BR", { minimumFractionDigits: 2 }) ?? "0,00"}`}</span> recuperável. Comece pelos mais urgentes.
+              </p>
             </div>
-            <p className="text-sm text-[#3B82F6]">
-              <span className="font-semibold text-[#1E40AF]">{carregando ? "..." : `Você tem ${dados?.cards?.emRisco ?? 0} pacientes em risco`}</span> com potencial de <span className="font-semibold text-[#1E40AF]">{carregando ? "..." : `R$ ${dados?.cards?.receitaEmRisco?.toLocaleString("pt-BR", { minimumFractionDigits: 2 }) ?? "0,00"}`}</span> recuperável. Comece pelos mais urgentes.
-            </p>
-          </div>
 
-          {/* Metrics — 4 cards individuais */}
+            {/* Metrics — 4 cards individuais */}
             <div className="grid grid-cols-4 gap-4 mb-7">
 
               {/* Card 1 — Pacientes em risco */}
@@ -841,58 +844,58 @@ export default function DashboardPage() {
                   Nenhum dado de pacientes no período selecionado.
                 </div>
               ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={dadosGrafico}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
-                  <XAxis 
-                    dataKey="month" 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fill: '#64748B', fontSize: 12 }}
-                  />
-                  <YAxis
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: '#64748B', fontSize: 12 }}
-                  />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: '#1E293B', 
-                      border: 'none', 
-                      borderRadius: '8px',
-                      color: 'white',
-                      fontSize: '12px'
-                    }}
-                  />
-                  <Legend 
-                    verticalAlign="bottom"
-                    height={36}
-                    formatter={(value) => (
-                      <span className="text-sm text-[#64748B]">
-                        {value === "emRisco" ? "Em risco" : "Recuperados"}
-                      </span>
-                    )}
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="emRisco" 
-                    name="emRisco"
-                    stroke="#3B82F6" 
-                    strokeWidth={2}
-                    dot={{ fill: '#3B82F6', strokeWidth: 2, r: 4 }}
-                    activeDot={{ r: 6, fill: '#3B82F6' }}
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="recuperados" 
-                    name="recuperados"
-                    stroke="#10B981" 
-                    strokeWidth={2}
-                    dot={{ fill: '#10B981', strokeWidth: 2, r: 4 }}
-                    activeDot={{ r: 6, fill: '#10B981' }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={dadosGrafico}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
+                    <XAxis 
+                      dataKey="month" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: '#64748B', fontSize: 12 }}
+                    />
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: '#64748B', fontSize: 12 }}
+                    />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: '#1E293B', 
+                        border: 'none', 
+                        borderRadius: '8px',
+                        color: 'white',
+                        fontSize: '12px'
+                      }}
+                    />
+                    <Legend 
+                      verticalAlign="bottom"
+                      height={36}
+                      formatter={(value) => (
+                        <span className="text-sm text-[#64748B]">
+                          {value === "emRisco" ? "Em risco" : "Recuperados"}
+                        </span>
+                      )}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="emRisco" 
+                      name="emRisco"
+                      stroke="#3B82F6" 
+                      strokeWidth={2}
+                      dot={{ fill: '#3B82F6', strokeWidth: 2, r: 4 }}
+                      activeDot={{ r: 6, fill: '#3B82F6' }}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="recuperados" 
+                      name="recuperados"
+                      stroke="#10B981" 
+                      strokeWidth={2}
+                      dot={{ fill: '#10B981', strokeWidth: 2, r: 4 }}
+                      activeDot={{ r: 6, fill: '#10B981' }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
               )}
             </div>
           </div>

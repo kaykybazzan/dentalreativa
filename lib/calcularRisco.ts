@@ -55,6 +55,9 @@ export function classificarRisco(dias: number, config: ConfigRisco = configRisco
   return "ok";
 }
 
+// Quantos dias um paciente fica no status "recuperado" antes de virar "ativo"
+const DIAS_ESTADO_RECUPERADO = 30
+
 export function aplicarRisco(
   pacientes: any[],
   config: ConfigRisco = configRiscoPadrao
@@ -62,7 +65,16 @@ export function aplicarRisco(
   return pacientes
     .filter((p) => !p.dadosIncompletos)
     .filter((p) => p.status !== "nao_contatar")
-    .filter((p) => p.status !== "recuperado")
+    .filter((p) => {
+      if (p.status !== "recuperado") return true
+      // Recuperado há menos de 30 dias → fica fora da lista de risco
+      // (aparece apenas na aba de recuperados)
+      // Recuperado há 30+ dias → entra no ciclo normal como ativo
+      const diasDesdeRecuperacao = p.ultimaConsulta
+        ? calcularDiasSemConsulta(p.ultimaConsulta)
+        : 999
+      return diasDesdeRecuperacao >= DIAS_ESTADO_RECUPERADO
+    })
     .filter((p) => p.ultimaConsulta !== null)
     .map((p) => {
       const diasSemConsulta = calcularDiasSemConsulta(p.ultimaConsulta);

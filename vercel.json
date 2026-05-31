@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/recuperado-para-ativo",
+      "schedule": "0 3 * * *"
+    }
+  ]
+}
