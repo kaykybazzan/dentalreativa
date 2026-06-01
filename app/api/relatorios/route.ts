@@ -83,44 +83,45 @@ export async function GET(req: Request) {
 
     // ── RECEITA RECUPERADA ───────────────────────────────────
     // Soma real dos valores dos ContactAttempts com valorRecuperado > 0
-    const receitaRecuperadaResult = await pool.query(
-      `SELECT COALESCE(
-         -- Soma dos ContactAttempts com valor informado
-         (SELECT SUM(ca."valorRecuperado")
-          FROM "ContactAttempt" ca
-          WHERE ca."clinicaId" = $1 AND ca."valorRecuperado" > 0 AND ca.tipo != 'espontaneo'),
-         0
-       ) +
-       COALESCE(
-         -- Pacientes recuperados SEM ContactAttempt com valor
-         -- usa valorUltimaConsulta como fallback
-         (SELECT SUM(COALESCE(p."valorUltimaConsulta", $2))
-          FROM "Paciente" p
-          WHERE p."clinicaId" = $1
-            AND p.status::text = 'recuperado'
-            AND NOT EXISTS (
-              SELECT 1 FROM "ContactAttempt" ca
-              WHERE ca."pacienteId" = p.id
-                AND ca."clinicaId" = $1
-                AND ca."valorRecuperado" > 0
-                AND ca.tipo != 'espontaneo'
-            )
-            AND NOT EXISTS (
-              SELECT 1 FROM "ContactAttempt" ca
-              WHERE ca."pacienteId" = p.id
-                AND ca."clinicaId" = $1
-                AND ca.tipo = 'espontaneo'
-            )),
-         0
-       ) AS total`,
-      [clinicaId, ticketMedio]
-    );
-    const receitaRecuperadaBruta = parseFloat(receitaRecuperadaResult.rows[0]?.total) || 0;
+    const receitaViaContatoResult = await pool.query(
+      `SELECT COALESCE(SUM(ca."valorRecuperado"), 0) as total
+       FROM "ContactAttempt" ca
+       WHERE ca."clinicaId" = $1
+         AND ca.tipo = 'recuperado'
+         AND ca."tentativaNumero" >= 1
+         ${filtroPeriodo}`,
+      [clinicaId]
+    )
+    const receitaViaContato = parseFloat(receitaViaContatoResult.rows[0]?.total) || 0
+
+    const receitaEspontaneaResult = await pool.query(
+      `SELECT COALESCE(SUM(ca."valorRecuperado"), 0) as total
+       FROM "ContactAttempt" ca
+       WHERE ca."clinicaId" = $1
+         AND ca.tipo = 'espontaneo'
+         ${filtroPeriodo}`,
+      [clinicaId]
+    )
+    const receitaEspontanea = parseFloat(receitaEspontaneaResult.rows[0]?.total) || 0
+
+    const receitaRecuperadaBruta = receitaViaContato + receitaEspontanea
 
     // ── RECEITA EM RISCO ─────────────────────────────────────
     // Soma dos tickets dos pacientes em risco (180+ dias)
     // Usar ticket_medio como fallback se paciente não tiver valor definido
-    const comRisco = aplicarRisco(todos).filter((p) => p.nivelRisco !== "ok");
+    const configRiscoResult = await pool.query(
+  `SELECT cm."diasRiscoMedio", cm."diasRiscoAlto", cm."diasRiscoCritico"
+   FROM "ConfiguracaoMensagens" cm
+   INNER JOIN "Usuario" u ON u."clinicaId" = cm."clinicaId"
+   WHERE u.email = $1`,
+  [session.user.email]
+  )
+  const configRisco = {
+    diasRiscoMedio: parseInt(String(configRiscoResult.rows[0]?.diasRiscoMedio ?? "180"), 10),
+    diasRiscoAlto: parseInt(String(configRiscoResult.rows[0]?.diasRiscoAlto ?? "270"), 10),
+    diasRiscoCritico: parseInt(String(configRiscoResult.rows[0]?.diasRiscoCritico ?? "365"), 10),
+  }
+  const comRisco = aplicarRisco(todos, configRisco).filter((p) => p.nivelRisco !== "ok");
     const receitaEmRisco = comRisco.reduce(
       (acc, p) => acc + (p.valorTicket > 0 ? p.valorTicket : ticketMedio),
       0
@@ -128,19 +129,26 @@ export async function GET(req: Request) {
 
     // ── FUNIL DE REATIVAÇÃO ──────────────────────────────────
     // Quantos foram contatados, quantos responderam, quantos recuperados
+    // DEPOIS
     const totalContatados = await pool.query(
       `SELECT COUNT(DISTINCT "pacienteId") as total
-      FROM "ContactAttempt"
-      WHERE "clinicaId" = $1 AND tipo != 'espontaneo'`,
+       FROM "ContactAttempt" ca
+       WHERE "clinicaId" = $1
+         AND tipo IN ('enviado', 'recuperado')
+         AND "tentativaNumero" >= 1
+         ${filtroPeriodo}`,
       [clinicaId]
-    );
+    )
 
     const totalEnvios = await pool.query(
       `SELECT COUNT(*) as total
-       FROM "ContactAttempt"
-       WHERE "clinicaId" = $1 AND tipo != 'espontaneo'`,
+       FROM "ContactAttempt" ca
+       WHERE "clinicaId" = $1
+         AND tipo IN ('enviado', 'recuperado')
+         AND "tentativaNumero" >= 1
+         ${filtroPeriodo}`,
       [clinicaId]
-    );
+    )
 
     const enviosPorTentativa = await pool.query(
       `SELECT "tentativaNumero", COUNT(*) as total
@@ -155,27 +163,31 @@ export async function GET(req: Request) {
     const totalContatadosNum = parseInt(totalContatados.rows[0]?.total) || 0;
 
     const recuperadosComContato = await pool.query(
-    `SELECT COUNT(DISTINCT p.id) as total
-    FROM "Paciente" p
-    INNER JOIN "ContactAttempt" ca ON ca."pacienteId" = p.id
-    WHERE p."clinicaId" = $1 
-      AND p.status::text = 'recuperado'
-      AND ca.tipo != 'espontaneo'`,
-  [clinicaId]
-    );
+      `SELECT COUNT(DISTINCT "pacienteId") as total
+       FROM "ContactAttempt" ca
+       WHERE ca."clinicaId" = $1
+         AND ca.tipo = 'recuperado'
+         AND ca."tentativaNumero" >= 1
+         ${filtroPeriodo}`,
+      [clinicaId]
+    )
     const recuperadosComContatoNum = parseInt(recuperadosComContato.rows[0]?.total) || 0;
 
     // NOVO — conta espontâneos separado para exibir no card
     const espontaneosResult = await pool.query(
       `SELECT COUNT(DISTINCT "pacienteId") as total
-      FROM "ContactAttempt"
-      WHERE "clinicaId" = $1 AND tipo = 'espontaneo'`,
+      FROM "ContactAttempt" ca
+      WHERE "clinicaId" = $1 
+      AND tipo = 'espontaneo'
+      ${filtroPeriodo}`,
       [clinicaId]
-    )
+      )
     const totalEspontaneos = parseInt(espontaneosResult.rows[0]?.total) || 0
 
     const recuperadosViaContato = parseInt(recuperadosComContato.rows[0]?.total) || 0;
-const receitaRecuperada = receitaRecuperadaBruta;
+    const receitaRecuperada = receitaRecuperadaBruta;
+    const receitaViaContatoFinal = receitaViaContato;
+    const receitaEspontaneaFinal = receitaEspontanea;
     const taxaSucesso = totalContatadosNum > 0
       ? ((recuperadosViaContato / totalContatadosNum) * 100).toFixed(1)
       : "0.0";
@@ -300,6 +312,8 @@ const receitaRecuperada = receitaRecuperadaBruta;
         totalSemResposta,
         totalIncompletos,
         receitaRecuperada,
+        receitaViaContato: receitaViaContatoFinal,
+        receitaEspontanea: receitaEspontaneaFinal,
         receitaEmRisco,
         taxaSucesso,
         totalEnvios: parseInt(totalEnvios.rows[0]?.total) || 0,

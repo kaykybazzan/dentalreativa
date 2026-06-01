@@ -274,7 +274,9 @@ useEffect(() => {
                   <p className="text-[40px] font-bold leading-tight mt-2">
                     {carregando ? "..." : `R$ ${(dados?.metricas?.receitaRecuperada ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
                   </p>
-                  <p className="text-[13px] text-white/70 mt-1">nos últimos 30 dias</p>
+                  <p className="text-[13px] text-white/70 mt-1">
+                    {period === "7d" ? "nos últimos 7 dias" : period === "30d" ? "nos últimos 30 dias" : period === "90d" ? "nos últimos 90 dias" : customPeriodLabel ? `de ${customPeriodLabel}` : "no período selecionado"}
+                  </p>
                   <div className="mt-3 pt-3 border-t border-white/20 flex justify-between items-center">
                     <div className="flex flex-col gap-0.5">
                       <p className="text-[12px] text-white/80 flex items-center gap-1.5">
@@ -407,7 +409,7 @@ useEffect(() => {
               </p>
               <p className="text-[12px] text-[#64748B] mt-1">taxa de sucesso</p>
               <p className="text-[12px] text-[#64748B] mt-2 mb-2">
-                {carregando ? "..." : `${dados?.funil?.recuperados ?? 0} de ${dados?.metricas?.totalContatados ?? 0} recuperados`}
+                {carregando ? "..." : `${dados?.funil?.recuperados ?? 0} de ${dados?.metricas?.totalContatados ?? 0} contatados`}
               </p>
               <div className="w-full bg-[#E2E8F0] h-1 rounded-full overflow-hidden">
                 <div className="bg-[#10B981] h-full" style={{ width: carregando ? "0%" : dados?.metricas?.taxaSucesso ?? "0" }} />

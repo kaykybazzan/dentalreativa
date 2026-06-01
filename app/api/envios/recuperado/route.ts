@@ -123,10 +123,16 @@ export async function POST(req: Request) {
       const valorFinal = valorRecuperado ?? 0
       console.log("[recuperado] valor recebido:", valorFinal, "pacienteId:", pacienteId)
 
-      // FIX: usa helper dedicado em vez de toLocaleDateString("sv-SE")
-      // toLocaleDateString pode variar entre runtimes; Intl.DateTimeFormat é confiável.
       const hojeStr = hojeEmSaoPaulo()
       console.log("[recuperado] data hoje SP:", hojeStr)
+
+      // Buscar valor anterior ANTES do UPDATE sobrescrever valorUltimaConsulta
+      const valorAnteriorResult = await pool.query(
+        `SELECT COALESCE("valorUltimaConsulta", 0) as valor
+         FROM "Paciente" WHERE id = $1 AND "clinicaId" = $2`,
+        [pacienteId, clinicaId]
+      )
+      const valorAnterior = valorAnteriorResult.rows[0]?.valor ?? 0
 
       await pool.query(
         `UPDATE "Paciente" SET
@@ -141,24 +147,11 @@ export async function POST(req: Request) {
         [pacienteId, clinicaId, valorFinal, hojeStr]
       )
 
-      // Verifica se existe ContactAttempt para atualizar
-      const caExiste = await pool.query(
-        `SELECT id FROM "ContactAttempt"
-         WHERE "pacienteId" = $1 AND "clinicaId" = $2
-         ORDER BY "criadoEm" DESC LIMIT 1`,
-        [pacienteId, clinicaId]
-      )
-
       const ehEspontaneo = body.espontaneo === true
 
       if (ehEspontaneo) {
-        // Paciente voltou sozinho — sempre insere como espontâneo, nunca altera CA existente
-        const valorParaGravar = valorFinal > 0 ? valorFinal : (
-          await pool.query(
-            `SELECT COALESCE("valorUltimaConsulta", 0) as valor FROM "Paciente" WHERE id = $1`,
-            [pacienteId]
-          )
-        ).rows[0]?.valor ?? 0
+        // Espontâneo: insere CA novo com tentativaNumero=0, nunca toca CAs existentes
+        const valorParaGravar = valorFinal > 0 ? valorFinal : valorAnterior
 
         await pool.query(
           `INSERT INTO "ContactAttempt"
@@ -166,22 +159,35 @@ export async function POST(req: Request) {
           VALUES ($1, $2, 0, 'espontaneo', $3, NOW())`,
           [pacienteId, clinicaId, valorParaGravar]
         )
-      } else if (caExiste.rows.length > 0) {
-        await pool.query(
-          `UPDATE "ContactAttempt"
-          SET tipo = 'recuperado', "valorRecuperado" = $1
-          WHERE id = $2`,
-          [valorFinal, caExiste.rows[0].id]
-        )
       } else {
-        await pool.query(
-          `INSERT INTO "ContactAttempt"
-          ("pacienteId", "clinicaId", "tentativaNumero", tipo, "valorRecuperado", "criadoEm")
-          VALUES ($1, $2, 0, 'espontaneo', $3, NOW())`,
-          [pacienteId, clinicaId, valorFinal]
+        // Via contato: atualiza o CA mais recente com tipo='enviado' para tipo='recuperado'
+        const caExiste = await pool.query(
+          `SELECT id FROM "ContactAttempt"
+           WHERE "pacienteId" = $1 AND "clinicaId" = $2
+             AND tipo = 'enviado'
+           ORDER BY "criadoEm" DESC LIMIT 1`,
+          [pacienteId, clinicaId]
         )
+
+        if (caExiste.rows.length > 0) {
+          const valorParaGravar = valorFinal > 0 ? valorFinal : valorAnterior
+          await pool.query(
+            `UPDATE "ContactAttempt"
+            SET tipo = 'recuperado', "valorRecuperado" = $1
+            WHERE id = $2`,
+            [valorParaGravar, caExiste.rows[0].id]
+          )
+        } else {
+          // Sem CA prévio com tipo='enviado': registra como espontâneo por segurança
+          await pool.query(
+            `INSERT INTO "ContactAttempt"
+            ("pacienteId", "clinicaId", "tentativaNumero", tipo, "valorRecuperado", "criadoEm")
+            VALUES ($1, $2, 0, 'espontaneo', $3, NOW())`,
+            [pacienteId, clinicaId, valorFinal > 0 ? valorFinal : valorAnterior]
+          )
+        }
       }
-    }  // ← fecha o bloco else principal (acao === "recuperado")
+    } // fecha o bloco else principal (acao === "recuperado")
 
     return Response.json({ success: true })
 

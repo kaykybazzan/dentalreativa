@@ -57,7 +57,7 @@ const numeroDaTentativa = totalTentativas + 1
     )
 
     // Definir novo status usando valores reais do enum StatusPaciente
-    const novoStatus = numeroDaTentativa === 3 ? 'aguardando_resposta' : 'contatado'
+    const novoStatus = 'aguardando_resposta'
 
     // Atualizar paciente: status, tentativaAtual, ultimaTentativa e atualizadoEm
     await pool.query(

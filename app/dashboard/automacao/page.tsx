@@ -210,38 +210,41 @@ export default function AutomacaoPage() {
   }
 
   const handleConfirmarEnvio = async (paciente: PacienteFila) => {
-  try {
-    const res = await fetch("/api/envios", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pacienteId: paciente.id }),
-    })
-    if (!res.ok) {
-      console.error("Erro ao confirmar envio:", await res.json())
-      return
+    try {
+      const res = await fetch("/api/envios", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pacienteId: paciente.id }),
+      })
+      if (!res.ok) {
+        console.error("Erro ao confirmar envio:", await res.json())
+        return
+      }
+      // Não remove da fila — mantém o paciente visível para registrar o resultado
+      setAguardandoConfirmacao((prev) => {
+        const novo = { ...prev }
+        delete novo[paciente.id]
+        return novo
+      })
+      // Marca como enviado para exibir o menu "O que aconteceu?"
+      setEnviados((prev) => ({ ...prev, [paciente.id]: true }))
+    } catch (error) {
+      console.error("Erro ao confirmar envio:", error)
     }
-    // Remove da fila imediatamente — a API já mudou o status do paciente
-    // então ele não aparecerá mais na próxima carga da fila
-    setFila((prev) => prev.filter((p) => p.id !== paciente.id))
-    setAguardandoConfirmacao((prev) => {
-      const novo = { ...prev }
-      delete novo[paciente.id]
-      return novo
-    })
-  } catch (error) {
-    console.error("Erro ao confirmar envio:", error)
   }
-}
 
   const handleCancelarEnvio = (pacienteId: string) => {
     setAguardandoConfirmacao((prev) => ({ ...prev, [pacienteId]: false }))
   }
 
   const handlePacienteVoltou = async (paciente: PacienteFila) => {
-    // Usa estimatedValue como fallback pois valorTicket pode estar zerado
+    setMenuAcoes((prev) => ({ ...prev, [paciente.id]: false }))
+
     const valorBase = paciente.estimatedValue > 0
       ? paciente.estimatedValue
-      : paciente.valorTicket
+      : paciente.valorTicket > 0
+        ? paciente.valorTicket
+        : 0
 
     const valorStr = window.prompt(
       `Qual o valor da consulta de ${paciente.name}?\n(deixe em branco para usar R$ ${valorBase.toFixed(2).replace(".", ",")})`
@@ -258,11 +261,20 @@ export default function AutomacaoPage() {
     }
 
     try {
-      await fetch("/api/envios/recuperado", {
+      const res = await fetch("/api/envios/recuperado", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pacienteId: paciente.id, valorRecuperado: valor }),
+        body: JSON.stringify({
+          pacienteId: paciente.id,
+          acao: "recuperado",
+          valorRecuperado: valor,
+          espontaneo: false,
+        }),
       })
+      if (!res.ok) {
+        console.error("Erro ao marcar como recuperado:", await res.json())
+        return
+      }
       setFila((prev) => prev.filter((p) => p.id !== paciente.id))
       setEnviados((prev) => {
         const novo = { ...prev }

@@ -53,20 +53,8 @@ export async function GET(req: Request) {
     )
 
     const todos = result.rows
-    const comRisco = aplicarRisco(todos)
 
-    // Métricas para os cards do dashboard
-    const totalPacientes = todos.length
-    const emRisco = comRisco.filter((p) => p.nivelRisco !== "ok").length
-    const recuperados = todos.filter((p) => p.status === "recuperado").length
-    const aguardandoResposta = todos.filter((p) => p.status === "aguardando_resposta").length
-
-    // Receita em risco: soma dos tickets dos pacientes em risco
-    const receitaEmRisco = comRisco
-      .filter((p) => p.nivelRisco !== "ok")
-      .reduce((acc, p) => acc + p.valorTicket, 0)
-
-    // Buscar ticket médio da clínica (configurado no onboarding)
+    // Buscar ticket médio e clinicaId da clínica
     const clinicaResult = await pool.query(
       `SELECT c.id, c."ticketMedio" FROM "Clinica" c
        INNER JOIN "Usuario" u ON u."clinicaId" = c.id
@@ -76,24 +64,49 @@ export async function GET(req: Request) {
     const clinicaId = clinicaResult.rows[0]?.id
     const ticketMedio = parseFloat(clinicaResult.rows[0]?.ticketMedio) || 0
 
+    // Buscar configuração de risco da clínica
+    const configRiscoResult = await pool.query(
+      `SELECT cm."diasRiscoMedio", cm."diasRiscoAlto", cm."diasRiscoCritico"
+       FROM "ConfiguracaoMensagens" cm
+       INNER JOIN "Usuario" u ON u."clinicaId" = cm."clinicaId"
+       WHERE u.email = $1`,
+      [session.user.email]
+    )
+    const configRisco = {
+      diasRiscoMedio: parseInt(String(configRiscoResult.rows[0]?.diasRiscoMedio ?? "180"), 10),
+      diasRiscoAlto: parseInt(String(configRiscoResult.rows[0]?.diasRiscoAlto ?? "270"), 10),
+      diasRiscoCritico: parseInt(String(configRiscoResult.rows[0]?.diasRiscoCritico ?? "365"), 10),
+    }
+
+    const comRisco = aplicarRisco(todos, configRisco)
+
+    // Métricas para os cards do dashboard
+    const totalPacientes = todos.length
+    const emRisco = comRisco.filter((p) => p.nivelRisco !== "ok" && p.status !== "aguardando_resposta").length
+    const recuperados = todos.filter((p) => p.status === "recuperado").length
+    const aguardandoResposta = todos.filter((p) => p.status === "aguardando_resposta").length
+
+    // receitaEmRisco calculada abaixo com fallback do ticketMedio
+
     // Recuperados via contato (pacientes que passaram pela Central de Envios)
-    const recuperadosViaContato = await pool.query(
-      `SELECT COUNT(DISTINCT p.id) as total
-       FROM "Paciente" p
-       INNER JOIN "ContactAttempt" ca ON ca."pacienteId" = p.id
-       WHERE p."clinicaId" = $1 AND p.status::text = 'recuperado'`,
+    const contatadosMesResult = await pool.query(
+      `SELECT COUNT(DISTINCT "pacienteId") as total
+       FROM "ContactAttempt"
+       WHERE "clinicaId" = $1
+         AND tipo IN ('enviado', 'recuperado')
+         AND "tentativaNumero" >= 1
+         AND "criadoEm" >= DATE_TRUNC('month', NOW())`,
       [clinicaId]
     )
-    const totalRecuperadosViaContato = parseInt(recuperadosViaContato.rows[0]?.total) || 0
+    const totalRecuperadosViaContato = parseInt(contatadosMesResult.rows[0]?.total) || 0
 
     // Para pacientes sem valorUltimaConsulta definido, usar o ticket médio da clínica como fallback
     const receitaEmRiscoComFallback = comRisco
-      .filter((p) => p.nivelRisco !== "ok")
+      .filter((p) => p.nivelRisco !== "ok" && p.status !== "aguardando_resposta")
       .reduce((acc, p) => acc + (p.valorTicket > 0 ? p.valorTicket : ticketMedio), 0)
 
-    // Top 5 urgentes para a tabela do dashboard (críticos com mais dias)
     const urgentes = comRisco
-      .filter((p) => p.nivelRisco !== "ok")
+      .filter((p) => p.nivelRisco !== "ok" && p.status !== "aguardando_resposta") 
       .sort((a, b) => b.diasSemConsulta - a.diasSemConsulta)
       .slice(0, 5)
       .map((p) => ({
@@ -221,18 +234,18 @@ export async function GET(req: Request) {
         mesesPeriodo.push({ month: label, emRisco: 0, recuperados: 0 })
       }
 
-      // Query 1 — pacientes em risco por mês
+      // Query 1 — pacientes em risco por mês (usa diasRiscoMedio da configuração)
       const emRiscoResult = await pool.query(
         `SELECT
-          TO_CHAR(DATE_TRUNC('month', p."ultimaConsulta" + INTERVAL '180 days'), 'Mon/YY') as month,
+          TO_CHAR(DATE_TRUNC('month', p."ultimaConsulta" + ($2 || ' days')::INTERVAL), 'Mon/YY') as month,
           COUNT(*) as total
         FROM "Paciente" p
         WHERE p."clinicaId" = $1
         AND p."ultimaConsulta" IS NOT NULL
         AND p."status" != 'recuperado'
-        GROUP BY DATE_TRUNC('month', p."ultimaConsulta" + INTERVAL '180 days')
-        ORDER BY DATE_TRUNC('month', p."ultimaConsulta" + INTERVAL '180 days') ASC`,
-        [clinicaId]
+        GROUP BY DATE_TRUNC('month', p."ultimaConsulta" + ($2 || ' days')::INTERVAL)
+        ORDER BY DATE_TRUNC('month', p."ultimaConsulta" + ($2 || ' days')::INTERVAL) ASC`,
+        [clinicaId, configRisco.diasRiscoMedio]
       )
 
       // Query 2 — pacientes recuperados por mês

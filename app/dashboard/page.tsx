@@ -204,12 +204,13 @@ export default function DashboardPage() {
   }, [status, session?.user?.clinicaId])
 
   useEffect(() => {
+    setDados(null)
     setCarregando(true)
-    let url = `/api/dashboard?periodo=${periodoSelecionado}`
+    let url = `/api/dashboard?periodo=${periodoSelecionado}&t=${Date.now()}`
     if (periodoSelecionado === "custom" && customDates) {
       url += `&dataInicio=${customDates.from}&dataFim=${customDates.to}`
     }
-    fetch(url)
+    fetch(url, { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => {
         if (!data.error) setDados(data)
@@ -680,7 +681,7 @@ export default function DashboardPage() {
                 </p>
                 <div className="flex items-center gap-1.5">
                   <span className="text-[11px] px-2 py-0.5 rounded-full bg-[#EFF6FF] text-[#1D4ED8] font-medium">
-                    pacientes recuperados
+                    contatados este mês
                   </span>
                 </div>
               </div>
