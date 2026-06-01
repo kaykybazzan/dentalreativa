@@ -330,7 +330,7 @@ useEffect(() => {
                   <p className="text-[11px] uppercase text-[#64748B] font-medium tracking-wide">Ticket médio recuperado</p>
                   <p className="text-[22px] font-bold text-[#1E293B] leading-tight mt-0.5">
                     {(dados?.funil?.recuperados ?? 0) + (dados?.metricas?.totalEspontaneos ?? 0) > 0
-                      ? `R$ ${(dados.metricas.receitaRecuperada / ((dados.funil.recuperados ?? 0) + (dados.metricas.totalEspontaneos ?? 0))).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
+                      ? `R$ ${(dados.metricas.receitaRecuperada / ((dados.funil.recuperados ?? 0) + (dados.metricas.totalEspontaneos ?? 0))).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                       : "—"}
                   </p>
                   <p className="text-[12px] text-[#64748B] mt-0.5">por paciente recuperado</p>

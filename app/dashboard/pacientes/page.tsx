@@ -49,7 +49,7 @@ import { parsearArquivoPacientes } from "@/lib/parsearArquivoPacientes"
 import { aplicarRisco } from "@/lib/calcularRisco"
 import { normalizarParaWhatsApp, validarTelefone, gerarLinkWhatsApp } from "@/lib/formatarTelefone"
 
-type PatientStatus = "em_risco" | "ativo" | "em_contato" | "contatado" | "recuperado" | "sem_resposta" | "nao_contatar"
+type PatientStatus = "em_risco" | "ativo" | "em_contato" | "contatado" | "recuperado" | "sem_resposta" | "nao_contatar" | "aguardando_resposta"
 
 type Patient = {
   id: number
@@ -89,10 +89,11 @@ const statusConfig: Record<string, { label: string; bgColor: string; textColor: 
   em_risco: { label: "Em risco", bgColor: "bg-transparent", textColor: "text-[#EF4444]" },
 }
 
-const tabFilters: { key: PatientStatus | "all" | "incompletos" | "vai_marcar"; label: string }[] = [
+const tabFilters: { key: PatientStatus | "all" | "incompletos" | "vai_marcar" | "aguardando_resposta"; label: string }[] = [
   { key: "all", label: "Todos" },
   { key: "incompletos", label: "Dados incompletos" },
   { key: "em_risco", label: "Em risco" },
+  { key: "aguardando_resposta", label: "Aguardando resposta" },
   { key: "vai_marcar", label: "Vai marcar" },
   { key: "recuperado", label: "Recuperados" },
 ]
@@ -116,7 +117,7 @@ export default function PatientsPage() {
   // Table state
   const [patients, setPatients] = useState<Patient[]>(samplePatients)
   const [searchQuery, setSearchQuery] = useState("")
-  const [activeTab, setActiveTab] = useState<PatientStatus | "all" | "incompletos" | "vai_marcar">("all")
+  const [activeTab, setActiveTab] = useState<PatientStatus | "all" | "incompletos" | "vai_marcar" | "aguardando_resposta">("all")
   const [filtroPeriodo, setFiltroPeriodo] = useState<"todos" | "ate6m" | "6a12m" | "mais1a">("todos")
   const [selectedPatients, setSelectedPatients] = useState<number[]>([])
   const [sortField, setSortField] = useState<"daysSinceVisit" | "avgTicket" | null>(null)
@@ -398,10 +399,11 @@ const [mensagem1, setMensagem1] = useState("")
     if (activeTab === "incompletos") {
       result = result.filter(p => p.dadosIncompletos === true || (p.dadosIncompletos as any) === "true")
     } else if (activeTab === "em_risco") {
-      // Usar a mesma lógica de cálculo de risco que o dashboard
       const pacientesComRisco = aplicarRisco(rawPatients, configRisco)
       const idsEmRisco = new Set(pacientesComRisco.filter(p => p.nivelRisco !== "ok").map(p => String(p.id)))
-      result = result.filter(p => idsEmRisco.has(String(p.id)))
+      result = result.filter(p => idsEmRisco.has(String(p.id)) && p.status !== "aguardando_resposta")
+    } else if (activeTab === "aguardando_resposta") {
+      result = result.filter(p => p.status === "aguardando_resposta")
     } else if (activeTab === "vai_marcar") {
       result = result.filter(p => p.vaiMarcar === true)
     } else if (activeTab !== "all") {
@@ -436,7 +438,10 @@ const [mensagem1, setMensagem1] = useState("")
           counts[tab.key] = patients.filter(p => p.dadosIncompletos === true || (p.dadosIncompletos as any) === "true").length
         } else if (tab.key === "em_risco") {
           const pacientesComRisco = aplicarRisco(rawPatients, configRisco)
-          counts[tab.key] = pacientesComRisco.filter(p => p.nivelRisco !== "ok").length
+          const idsAguardando = new Set(patients.filter(p => p.status === "aguardando_resposta").map(p => String(p.id)))
+          counts[tab.key] = pacientesComRisco.filter(p => p.nivelRisco !== "ok" && !idsAguardando.has(String(p.id))).length
+        } else if (tab.key === "aguardando_resposta") {
+          counts[tab.key] = patients.filter(p => p.status === "aguardando_resposta").length
         } else if (tab.key === "vai_marcar") {
           counts[tab.key] = patients.filter(p => p.vaiMarcar === true).length
         } else {
@@ -445,7 +450,7 @@ const [mensagem1, setMensagem1] = useState("")
       }
     })
     return counts
-  }, [patients])
+  }, [patients, rawPatients, configRisco])
 
   const handleSort = (field: "daysSinceVisit" | "avgTicket") => {
     if (sortField === field) {

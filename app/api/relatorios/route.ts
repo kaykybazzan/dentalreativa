@@ -121,7 +121,7 @@ export async function GET(req: Request) {
     diasRiscoAlto: parseInt(String(configRiscoResult.rows[0]?.diasRiscoAlto ?? "270"), 10),
     diasRiscoCritico: parseInt(String(configRiscoResult.rows[0]?.diasRiscoCritico ?? "365"), 10),
   }
-  const comRisco = aplicarRisco(todos, configRisco).filter((p) => p.nivelRisco !== "ok");
+  const comRisco = aplicarRisco(todos, configRisco).filter((p) => p.nivelRisco !== "ok" && p.status !== "aguardando_resposta");
     const receitaEmRisco = comRisco.reduce(
       (acc, p) => acc + (p.valorTicket > 0 ? p.valorTicket : ticketMedio),
       0
