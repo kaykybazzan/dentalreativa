@@ -125,14 +125,17 @@ export async function PUT(
     }
 
     if (status === "cancelado") {
-      await pool.query(
-        `UPDATE public."Paciente"
-         SET "vaiMarcar" = TRUE,
-             "atualizadoEm" = NOW()
-         WHERE id = $1 AND "clinicaId" = $2`,
-        [pacienteId, clinicaId]
-      )
-    }
+    await pool.query(
+      `UPDATE public."Paciente"
+      SET status = 'ativo'::public."StatusPaciente",
+          "vaiMarcar" = FALSE,
+          "tentativaAtual" = 0,
+          "ultimaTentativa" = NULL,
+          "atualizadoEm" = NOW()
+      WHERE id = $1 AND "clinicaId" = $2`,
+      [pacienteId, clinicaId]
+    )
+  }
 
     return Response.json({ success: true })
   } catch (error) {

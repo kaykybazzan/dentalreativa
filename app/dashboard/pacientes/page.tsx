@@ -83,7 +83,7 @@ const statusConfig: Record<string, { label: string; bgColor: string; textColor: 
   ativo: { label: "Ativo", bgColor: "bg-transparent", textColor: "text-[#94A3B8]" },
   contatado: { label: "Aguardando resposta", bgColor: "bg-transparent", textColor: "text-[#3B82F6]" },
   em_contato: { label: "Aguardando resposta", bgColor: "bg-transparent", textColor: "text-[#3B82F6]" },
-  aguardando_resposta: { label: "Sem retorno", bgColor: "bg-transparent", textColor: "text-[#F59E0B]" },
+  aguardando_resposta: { label: "Aguardando resposta", bgColor: "bg-transparent", textColor: "text-[#3B82F6]" },
   recuperado: { label: "Recuperado", bgColor: "bg-transparent", textColor: "text-[#10B981]" },
   nao_contatar: { label: "Não contatar", bgColor: "bg-transparent", textColor: "text-[#94A3B8] line-through" },
   em_risco: { label: "Em risco", bgColor: "bg-transparent", textColor: "text-[#EF4444]" },
@@ -164,7 +164,8 @@ export default function PatientsPage() {
   const [toast, setToast] = useState<{ show: boolean; message: string }>({ show: false, message: "" })
   const [menuAcaoPaciente, setMenuAcaoPaciente] = useState<Record<number, boolean>>({})
   const [mensagemDireta, setMensagemDireta] = useState("")
-const [mensagem1, setMensagem1] = useState("")
+  const [mensagem1, setMensagem1] = useState("")
+  const [agendamentosHoje, setAgendamentosHoje] = useState(0)
   const [configRisco, setConfigRisco] = useState({
     diasRiscoMedio: 180,
     diasRiscoAlto: 270,
@@ -217,11 +218,17 @@ const [mensagem1, setMensagem1] = useState("")
 
       // Buscar mensagem1 das configurações
       fetch("/api/mensagens")
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.mensagem1) setMensagem1(data.mensagem1)
-        })
-        .catch(() => {})
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.mensagem1) setMensagem1(data.mensagem1)
+      })
+      .catch(() => {})
+
+// Badge da agenda no navItem
+fetch("/api/agendamentos?contagem=true")
+  .then((res) => res.json())
+  .then((data) => setAgendamentosHoje(data.total || 0))
+  .catch(() => {})
     }
   }, [])
 
@@ -336,10 +343,10 @@ const [mensagem1, setMensagem1] = useState("")
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "patients", label: "Pacientes", icon: Users },
     { id: "automation", label: "Central de Envios", icon: Zap },
-    { id: "agenda", label: "Agenda", icon: CalendarDays },
+    { id: "agenda", label: "Agenda", icon: CalendarDays, badge: agendamentosHoje },
     { id: "reports", label: "Relatórios", icon: BarChart3 },
     { id: "settings", label: "Configurações", icon: Settings }
-  ]
+  ] 
 
   const handleExportCSV = () => {
     const headers = ["Nome", "Telefone", "Última consulta", "Dias sem retorno", "Ticket médio", "Status"]
@@ -431,26 +438,34 @@ const [mensagem1, setMensagem1] = useState("")
 
   // Tab counts
   const tabCounts = useMemo(() => {
-    const counts: Record<string, number> = { all: patients.length }
-    tabFilters.forEach(tab => {
-      if (tab.key !== "all") {
-        if (tab.key === "incompletos") {
-          counts[tab.key] = patients.filter(p => p.dadosIncompletos === true || (p.dadosIncompletos as any) === "true").length
+  // Aplicar filtro de período antes de contar
+  let base = [...patients]
+  if (filtroPeriodo === "ate6m") base = base.filter(p => p.daysSinceVisit <= 180)
+  else if (filtroPeriodo === "6a12m") base = base.filter(p => p.daysSinceVisit > 180 && p.daysSinceVisit <= 365)
+  else if (filtroPeriodo === "mais1a") base = base.filter(p => p.daysSinceVisit > 365)
+
+  const counts: Record<string, number> = { all: base.length }
+  tabFilters.forEach(tab => {
+    if (tab.key !== "all") {
+      if (tab.key === "incompletos") {
+        counts[tab.key] = base.filter(p => p.dadosIncompletos === true || (p.dadosIncompletos as any) === "true").length
         } else if (tab.key === "em_risco") {
-          const pacientesComRisco = aplicarRisco(rawPatients, configRisco)
-          const idsAguardando = new Set(patients.filter(p => p.status === "aguardando_resposta").map(p => String(p.id)))
-          counts[tab.key] = pacientesComRisco.filter(p => p.nivelRisco !== "ok" && !idsAguardando.has(String(p.id))).length
+        const idsBase = new Set(base.map(p => String(p.id)))
+        const rawFiltrado = rawPatients.filter(p => idsBase.has(String(p.id)))
+        const pacientesComRisco = aplicarRisco(rawFiltrado, configRisco)
+        const idsAguardando = new Set(base.filter(p => p.status === "aguardando_resposta").map(p => String(p.id)))
+        counts[tab.key] = pacientesComRisco.filter(p => p.nivelRisco !== "ok" && !idsAguardando.has(String(p.id))).length
         } else if (tab.key === "aguardando_resposta") {
-          counts[tab.key] = patients.filter(p => p.status === "aguardando_resposta").length
+          counts[tab.key] = base.filter(p => p.status === "aguardando_resposta").length
         } else if (tab.key === "vai_marcar") {
-          counts[tab.key] = patients.filter(p => p.vaiMarcar === true).length
+          counts[tab.key] = base.filter(p => p.vaiMarcar === true).length
         } else {
-          counts[tab.key] = patients.filter(p => p.status === tab.key).length
+          counts[tab.key] = base.filter(p => p.status === tab.key).length
         }
       }
     })
     return counts
-  }, [patients, rawPatients, configRisco])
+  }, [patients, rawPatients, configRisco, filtroPeriodo])
 
   const handleSort = (field: "daysSinceVisit" | "avgTicket") => {
     if (sortField === field) {
@@ -844,7 +859,12 @@ const [mensagem1, setMensagem1] = useState("")
                     }`}
                   >
                     <Icon className="h-5 w-5" />
-                    {item.label}
+                    <span className="flex-1 text-left">{item.label}</span>
+                    {(item as any).badge > 0 && (
+                      <span className="bg-[#F59E0B] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                        {(item as any).badge}
+                      </span>
+                    )}
                   </button>
                 </li>
               )

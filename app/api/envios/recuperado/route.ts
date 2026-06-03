@@ -56,14 +56,15 @@ export async function POST(req: Request) {
       )
 
     } else if (acao === "numero_errado") {
-      await pool.query(
-        `UPDATE "Paciente" SET
-          "dadosIncompletos" = true,
-          "vaiMarcar" = FALSE,
-          "atualizadoEm" = NOW()
-        WHERE id = $1 AND "clinicaId" = $2`,
-        [pacienteId, clinicaId]
-      )
+    await pool.query(
+      `UPDATE "Paciente" SET
+        "dadosIncompletos" = true,
+        "vaiMarcar" = FALSE,
+        status = 'ativo'::"StatusPaciente",
+        "atualizadoEm" = NOW()
+      WHERE id = $1 AND "clinicaId" = $2`,
+      [pacienteId, clinicaId]
+    )
 
     } else if (acao === "vai_marcar") {
       const { dataConsulta, horario, procedimento } = body
