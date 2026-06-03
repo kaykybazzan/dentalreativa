@@ -78,32 +78,25 @@ export async function POST(req: Request) {
         continue
       }
 
-      // Checar duplicata
-      const duplicata = await pool.query(
-        `SELECT id FROM "Paciente" WHERE "clinicaId" = $1 AND telefone = $2`,
-        [clinicaId, telefoneLimpo]
-      )
-      if (duplicata.rows.length > 0) {
-        duplicados++
-        continue
-      }
-
-      
-
-      // Inserir com data como null se inválida — nunca enviar string inválida para o banco
-      await pool.query(
-        `INSERT INTO "Paciente" ("clinicaId", nome, telefone, "ultimaConsulta", "valorUltimaConsulta", "dadosIncompletos", status)
-         VALUES ($1, $2, $3, $4::date, $5, $6, 'ativo')`,
-        [
-          clinicaId,
-          nomeValido || "Sem nome",
-          telefoneLimpo || null,
-          dataValida,  // null se inválida — o banco aceita null em campo date
-          valorTicket,
-          dadosIncompletos,
-        ]
-      )
-      importados++
+      const result = await pool.query(
+  `INSERT INTO "Paciente" ("clinicaId", nome, telefone, "ultimaConsulta", "valorUltimaConsulta", "dadosIncompletos", status)
+   VALUES ($1, $2, $3, $4::date, $5, $6, 'ativo')
+   ON CONFLICT ("clinicaId", telefone) DO NOTHING
+   RETURNING id`,
+  [
+    clinicaId,
+    nomeValido || "Sem nome",
+    telefoneLimpo || null,
+    dataValida,
+    valorTicket,
+    dadosIncompletos,
+  ]
+)
+if (result.rowCount === 0) {
+  duplicados++
+} else {
+  importados++
+}
     }
 
     return Response.json({ importados, duplicados, incompletos })
