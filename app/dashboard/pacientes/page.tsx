@@ -106,9 +106,9 @@ const notifications = [
 
 export default function PatientsPage() {
   const router = useRouter()
-  const [clinicName, setClinicName] = useState("Clínica Sorriso")
-  const [clinicCity, setClinicCity] = useState("São Paulo - SP")
-  const [userName, setUserName] = useState("Kayky")
+  const [clinicName, setClinicName] = useState("")
+  const [clinicCity, setClinicCity] = useState("")
+  const [userName, setUserName] = useState("")
   const [activeNav, setActiveNav] = useState("patients")
   const [showNotifications, setShowNotifications] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
@@ -175,8 +175,16 @@ export default function PatientsPage() {
   useEffect(() => {
     if (typeof window !== "undefined") {
       setActiveNav("patients")
-      
-      const savedSignupData = localStorage.getItem("signup_data")
+
+    // Buscar nome real da sessão (NextAuth)
+    fetch("/api/auth/session")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.user?.name) setUserName(data.user.name)
+      })
+      .catch(() => {})
+
+    const savedSignupData = localStorage.getItem("signup_data")
       if (savedSignupData) {
         try {
           const parsed = JSON.parse(savedSignupData)
