@@ -98,14 +98,15 @@ export async function POST(req: Request) {
       } else {
         // Prometeu marcar depois: entra na fila de follow-up em 7 dias
         await pool.query(
-          `UPDATE "Paciente" SET
-            "vaiMarcar" = TRUE,
-            "ultimaTentativa" = NOW(),
-            "tentativaAtual" = GREATEST("tentativaAtual", 1),
-            "atualizadoEm" = NOW()
-          WHERE id = $1 AND "clinicaId" = $2`,
-          [pacienteId, clinicaId]
-        )
+        `UPDATE "Paciente" SET
+          "vaiMarcar" = TRUE,
+          status = 'ativo'::"StatusPaciente",
+          "ultimaTentativa" = NOW(),
+          "tentativaAtual" = GREATEST("tentativaAtual", 1),
+          "atualizadoEm" = NOW()
+        WHERE id = $1 AND "clinicaId" = $2`,
+        [pacienteId, clinicaId]
+      )
       }
 
     } else if (acao === "feito_follow_up") {
