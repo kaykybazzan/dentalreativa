@@ -21,12 +21,12 @@ export async function GET(req: Request) {
 
     // Buscar quantas tentativas já foram feitas
     const tentativasResult = await pool.query(
-      `SELECT COUNT(*) as total FROM "ContactAttempt"
-       WHERE "pacienteId" = $1`,
+      `SELECT "tentativaAtual" FROM "Paciente"
+      WHERE id = $1`,
       [pacienteId]
     )
-    const totalTentativas = parseInt(tentativasResult.rows[0]?.total) || 0
-    const proximaTentativa = totalTentativas + 1 // 1, 2 ou 3
+    const totalTentativas = parseInt(tentativasResult.rows[0]?.tentativaAtual) || 0
+    const proximaTentativa = totalTentativas + 1
 
     // Buscar mensagens configuradas da clínica
     const clinicaResult = await pool.query(
@@ -41,9 +41,9 @@ export async function GET(req: Request) {
 
     // Mensagens padrão caso a clínica não tenha configurado
     const mensagensPadrao = {
-      mensagem1: `Olá, ${paciente?.nome}! Tudo bem? Aqui é da ${clinica?.nome_clinica}. Notamos que faz um tempo que não te vemos por aqui. Que tal agendar uma consulta de revisão? Estamos te esperando! 😊`,
+      mensagem1: `Olá, ${paciente?.nome}! Tudo bem? Aqui é da ${clinica?.nome_clinica}. Notamos que faz um tempo que não te vemos por aqui. Que tal agendar uma consulta de revisão? Estamos te esperando!`,
       mensagem2: `Oi, ${paciente?.nome}! Passando para lembrar que sua saúde bucal é muito importante. Na ${clinica?.nome_clinica} temos horários disponíveis para você. Vamos agendar?`,
-      mensagem3: `${paciente?.nome}, essa é nossa última tentativa de contato. Adoraríamos ter você de volta na ${clinica?.nome_clinica}. Se precisar de nós, estaremos aqui! 🦷`,
+      mensagem3: `${paciente?.nome}, essa é nossa última tentativa de contato. Adoraríamos ter você de volta na ${clinica?.nome_clinica}. Se precisar de nós, estaremos aqui!`,
     }
 
     // Selecionar a mensagem correta baseada no número da tentativa

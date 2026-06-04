@@ -45,7 +45,15 @@ export async function GET() {
     const hoje = new Date()
 
     const fila = aplicarRisco(result.rows, configRisco)
-      .filter((p) => p.nivelRisco !== "ok")
+    .filter((p) => p.nivelRisco !== "ok")
+    .filter((p) => {
+    const raw = result.rows.find((r: any) => String(r.id) === String(p.id))
+        // Nunca mostrar pacientes que não devem ser contatados
+        if (raw?.status === "nao_contatar") return false
+        if (raw?.dadosIncompletos === true) return false
+        if (raw?.status === "recuperado") return false
+        return true
+      })
       .filter((p) => {
         const raw = result.rows.find((r: any) => String(r.id) === String(p.id))
         const tentativa = parseInt(String(raw?.tentativaAtual ?? "0"), 10)
