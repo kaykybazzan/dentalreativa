@@ -899,7 +899,7 @@ fetch("/api/agendamentos?contagem=true")
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/5 transition-colors"
             >
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white text-sm font-medium shrink-0">
-                {userName[0].toUpperCase()}
+                {userName?.[0]?.toUpperCase() || "?"}
               </div>
               <div className="flex-1 min-w-0 text-left">
                 <p className="text-sm font-medium text-white truncate">{userName}</p>
