@@ -1,12 +1,6 @@
-<div align="center">
-
-<img src="https://via.placeholder.com/96x96.png?text=🦷" width="96" alt="DentalReativa logo" />
-
 # DentalReativa
 
-**Reative pacientes inativos com 1 clique pelo WhatsApp.**
-
-SaaS para clínicas odontológicas brasileiras que automatiza o processo de recontato com pacientes que pararam de aparecer — sem API paga, sem burocracia.
+SaaS para clínicas odontológicas que automatiza o processo de recontato com pacientes que pararam de aparecer.
 
 ![Next.js](https://img.shields.io/badge/Next.js-16.2-black?logo=next.js)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue?logo=typescript)
@@ -14,9 +8,7 @@ SaaS para clínicas odontológicas brasileiras que automatiza o processo de reco
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Neon-336791?logo=postgresql)
 ![Deploy](https://img.shields.io/badge/deploy-Vercel-black?logo=vercel)
 
-**[🔗 Ver demo ao vivo](https://dentalreativa.vercel.app/)**
-
-</div>
+Demo: https://dentalreativa.vercel.app/
 
 ---
 
@@ -33,27 +25,27 @@ SaaS para clínicas odontológicas brasileiras que automatiza o processo de reco
 
 ## O problema que resolve
 
-Clínicas odontológicas perdem em média **25% dos pacientes por ano**. Esses pacientes simplesmente somem — não cancelam, não avisam, apenas param de aparecer.
+Clínicas odontológicas têm pacientes que simplesmente somem — não cancelam, não avisam, apenas param de aparecer.
 
-Softwares como o Dental Office e o Easy Dental lembram quem **tem** consulta marcada. O DentalReativa não compete com eles — é uma camada complementar que identifica e traz de volta quem **sumiu**.
+Softwares como Dental Office e Easy Dental lembram quem tem consulta marcada. O DentalReativa não compete com eles — é uma camada complementar que identifica e traz de volta quem sumiu.
 
 ## Funcionalidades
 
 | Tela | O que faz |
 |---|---|
-| **Dashboard** | Visão geral de pacientes em risco, receita recuperável e evolução mensal |
-| **Pacientes** | Cadastro manual, importação CSV/Excel, filtros, busca e histórico |
-| **Central de Envios** | Fila de recontato priorizada, com envio via WhatsApp em 1 clique |
-| **Agenda** | Fila de follow-up de reativação (não é agenda de consultas — é "quem eu preciso contatar essa semana") |
-| **Relatórios** | Funil de reativação, receita recuperada e taxa de sucesso por tentativa |
-| **Configurações** | Dados da clínica, modelos de mensagem e limites de risco personalizáveis |
+| Dashboard | Visão geral de pacientes em risco, receita recuperável e evolução mensal |
+| Pacientes | Cadastro manual, importação CSV/Excel, filtros, busca e histórico |
+| Central de Envios | Fila de recontato priorizada, com envio via WhatsApp em 1 clique |
+| Agenda | Fila de follow-up de reativação (não é agenda de consultas — é "quem eu preciso contatar essa semana") |
+| Relatórios | Funil de reativação, receita recuperada e taxa de sucesso por tentativa |
+| Configurações | Dados da clínica, modelos de mensagem e limites de risco personalizáveis |
 
 ## Destaques técnicos
 
-- **Sem API oficial do WhatsApp no MVP** — usa `wa.me` para validar o produto sem custo por mensagem antes de investir na WhatsApp Cloud API (Meta) na fase paga
-- **3 tentativas de contato** — cada uma com mensagem e intervalo configuráveis pela clínica
-- **Importação inteligente** — aceita CSV e Excel com datas em múltiplos formatos, normalizando fuso horário para evitar erros de "um dia a menos"
-- **Lógica de risco configurável** — classifica pacientes por dias sem consulta (médio / alto / crítico), com limites ajustáveis por clínica
+- Sem API oficial do WhatsApp no MVP — usa `wa.me` para validar o produto sem custo por mensagem antes de migrar para a WhatsApp Cloud API (Meta) na fase paga
+- 3 tentativas de contato, cada uma com mensagem e intervalo configuráveis pela clínica
+- Importação aceita CSV e Excel com datas em múltiplos formatos, normalizando fuso horário para evitar erro de "um dia a menos"
+- Classificação de risco por dias sem consulta (médio / alto / crítico), com limites ajustáveis por clínica
 
 ## Stack
 
@@ -104,7 +96,7 @@ dentalreativa/
 
 ## Como rodar localmente
 
-**Pré-requisitos:** Node.js 20+, uma instância PostgreSQL (recomendado: [Neon](https://neon.tech), plano gratuito).
+Pré-requisitos: Node.js 20+, uma instância PostgreSQL (recomendado: [Neon](https://neon.tech), plano gratuito).
 
 ```bash
 # 1. Clonar o repositório
@@ -122,7 +114,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Abra [http://localhost:3000](http://localhost:3000).
+Abra http://localhost:3000.
 
 ### Variáveis de ambiente
 
@@ -135,7 +127,7 @@ NEXTAUTH_URL=            # URL da aplicação (http://localhost:3000 em dev)
 CRON_SECRET=             # token usado para autenticar a rotina agendada (Vercel Cron)
 ```
 
-> ⚠️ Nunca commite o `.env.local` — confirme que ele está no `.gitignore`.
+Nunca commite o `.env.local` — confirme que ele está no `.gitignore`.
 
 ## Convenções de banco de dados
 
@@ -155,7 +147,7 @@ WHERE status::text = 'contatado'::text::"StatusPaciente";
 const total = parseInt(result.rows[0].total);
 ```
 
-**Valores do ENUM `StatusPaciente`:** `ativo` · `contatado` · `aguardando_resposta` · `recuperado` · `nao_contatar`
+Valores do ENUM `StatusPaciente`: `ativo` · `contatado` · `aguardando_resposta` · `recuperado` · `nao_contatar`
 
 ## Lógica de risco
 
@@ -170,17 +162,17 @@ Os limites de dias são configuráveis por clínica em Configurações.
 
 ## Status do projeto
 
-🚧 **MVP em desenvolvimento ativo.** Frontend e backend (autenticação, banco de dados, CRUD de pacientes) funcionais e em produção. Envio de mensagens é manual via `wa.me`; automação de envio real (WhatsApp Cloud API) está no roadmap para quando houver receita para sustentar o custo por mensagem.
+MVP em desenvolvimento ativo. Frontend e backend (autenticação, banco de dados, CRUD de pacientes) funcionais e em produção. Envio de mensagens é manual via `wa.me`; automação de envio real (WhatsApp Cloud API) está no roadmap para quando houver receita para sustentar o custo por mensagem.
 
-**Próximos passos:**
-- [ ] Tela de perfil individual do paciente (timeline clínica + timeline de contatos)
-- [ ] Integração com WhatsApp Cloud API (Meta) como upgrade pago
-- [ ] Métricas de performance de mensagens com estado vazio tratado
+Próximos passos:
+- Tela de perfil individual do paciente (timeline clínica + timeline de contatos)
+- Integração com WhatsApp Cloud API (Meta) como upgrade pago
+- Métricas de performance de mensagens com estado vazio tratado
 
 ## Autor
 
-**Kayky Bazzan**
-[LinkedIn](https://www.linkedin.com/in/kaykybazzan)
+Kayky Bazzan
+LinkedIn: https://www.linkedin.com/in/kaykybazzan
 
 ## Licença
 
