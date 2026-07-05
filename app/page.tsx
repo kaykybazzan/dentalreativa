@@ -203,8 +203,8 @@ export default function LoginPage() {
         </div>
 
         {/* Right Side - Value Panel */}
-        <div className="hidden lg:flex lg:w-[45%] xl:w-1/2 bg-[#0F3460] p-12 xl:p-16 flex-col justify-center relative overflow-hidden">
-          <div className="max-w-lg">
+        <div className="hidden lg:flex lg:w-[45%] xl:w-1/2 bg-[#0F3460] p-12 xl:p-16 flex-col justify-center overflow-hidden">
+          <div className="max-w-lg flex flex-col">
           {/* Flat Modern Illustration */}
           <div className="mb-10">
             <DentalIllustration className="w-full max-w-[280px]" />
@@ -238,22 +238,22 @@ export default function LoginPage() {
               <span className="text-white">Acompanhe a receita recuperada no mês</span>
             </li>
           </ul>
-        </div>
 
-        {/* Floating Card */}
-        <div className="absolute bottom-12 right-8 xl:bottom-16 xl:right-12 bg-card rounded-2xl px-4 py-3 shadow-lg w-[200px]">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-success/15 shrink-0">
-              <DollarSign className="h-4 w-4 text-success" />
+          {/* Recovery Card */}
+          <div className="mt-10 self-end bg-card rounded-2xl px-4 py-3 shadow-lg w-[200px]">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-success/15 shrink-0">
+                <DollarSign className="h-4 w-4 text-success" />
+              </div>
+              <div>
+                <p className="text-base font-bold text-card-foreground leading-tight">R$ 12.400</p>
+                <p className="text-[11px] text-muted-foreground leading-tight">recuperados esse mês</p>
+              </div>
             </div>
-            <div>
-              <p className="text-base font-bold text-card-foreground leading-tight">R$ 12.400</p>
-              <p className="text-[11px] text-muted-foreground leading-tight">recuperados esse mês</p>
+            <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-border">
+              <Users className="h-3.5 w-3.5 text-muted-foreground" />
+              <p className="text-xs text-muted-foreground">34 pacientes reativados</p>
             </div>
-          </div>
-          <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-border">
-            <Users className="h-3.5 w-3.5 text-muted-foreground" />
-            <p className="text-xs text-muted-foreground">34 pacientes reativados</p>
           </div>
         </div>
         </div>
