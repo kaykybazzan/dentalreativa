@@ -247,16 +247,6 @@ export default function PatientsPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
 
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement
-      if (!target.closest("#user-menu-button") && !target.closest("#user-menu-dropdown")) {
-        setShowUserMenu(false)
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [])
 
   const handleLogout = () => {
     localStorage.removeItem("onboarding_done")
