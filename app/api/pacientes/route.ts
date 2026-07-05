@@ -31,7 +31,15 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { nome, telefone, ultimaConsulta, valor_ticket, procedimento } = await req.json()
+    interface PacienteInput {
+  nome: string
+  telefone: string
+  ultimaConsulta?: string
+  valor_ticket?: string | number
+  procedimento?: string
+}
+
+  const { nome, telefone, ultimaConsulta, valor_ticket, procedimento }: PacienteInput = await req.json()
 
     // Validar data futura
     if (ultimaConsulta) {
@@ -59,10 +67,7 @@ export async function POST(req: Request) {
       return Response.json({ error: "Clínica não encontrada" }, { status: 404 })
     }
 
-    // Normalizar telefone — remover tudo que não for número
     const telefoneLimpo = telefone?.replace(/\D/g, "") ?? ""
-
-    // Verificar dados incompletos
     const dadosIncompletos = !nome || !telefoneLimpo || !ultimaConsulta
 
     // Verificar duplicata por telefone

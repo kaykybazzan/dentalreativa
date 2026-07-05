@@ -9,7 +9,6 @@ import {
   BarChart3,
   Settings,
   Search,
-  Bell,
   LogOut,
   ChevronDown,
   ChevronUp,
@@ -18,8 +17,6 @@ import {
   Plus,
   Check,
   X,
-  AlertTriangle,
-  Calendar,
   CalendarDays,
   Upload,
   Download,
@@ -98,11 +95,6 @@ const tabFilters: { key: PatientStatus | "all" | "incompletos" | "vai_marcar" | 
   { key: "recuperado", label: "Recuperados" },
 ]
 
-const notifications = [
-  { id: 1, type: "alert", text: "5 novos pacientes em risco hoje", time: "Há 2 horas" },
-  { id: 2, type: "whatsapp", text: "Maria Silva respondeu sua mensagem", time: "Há 3 horas" },
-  { id: 3, type: "calendar", text: "João Santos confirmou consulta", time: "Há 5 horas" }
-]
 
 export default function PatientsPage() {
   const router = useRouter()
@@ -110,12 +102,11 @@ export default function PatientsPage() {
   const [clinicCity, setClinicCity] = useState("")
   const [userName, setUserName] = useState("")
   const [activeNav, setActiveNav] = useState("patients")
-  const [showNotifications, setShowNotifications] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showProfileModal, setShowProfileModal] = useState(false)
   
   // Table state
-  const [patients, setPatients] = useState<Patient[]>(samplePatients)
+  const [patients, setPatients] = useState<Patient[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [activeTab, setActiveTab] = useState<PatientStatus | "all" | "incompletos" | "vai_marcar" | "aguardando_resposta">("all")
   const [filtroPeriodo, setFiltroPeriodo] = useState<"todos" | "ate6m" | "6a12m" | "mais1a">("todos")
@@ -216,6 +207,7 @@ export default function PatientsPage() {
         .then((res) => res.json())
         .then((data) => {
           if (data.mensagemDireta) setMensagemDireta(data.mensagemDireta)
+          if (data.mensagem1) setMensagem1(data.mensagem1)
           setConfigRisco({
             diasRiscoMedio: data.diasRiscoMedio ?? 180,
             diasRiscoAlto: data.diasRiscoAlto ?? 270,
@@ -223,14 +215,6 @@ export default function PatientsPage() {
           })
         })
         .catch(() => {})
-
-      // Buscar mensagem1 das configurações
-      fetch("/api/mensagens")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.mensagem1) setMensagem1(data.mensagem1)
-      })
-      .catch(() => {})
 
 // Badge da agenda no navItem
 fetch("/api/agendamentos?contagem=true")
@@ -679,8 +663,6 @@ fetch("/api/agendamentos?contagem=true")
     const telefoneNormalizado = editForm.phone ? normalizarParaWhatsApp(editForm.phone) : undefined
 
     try {
-        console.log('editForm.lastVisit:', editForm.lastVisit)
-        console.log('rawUltimaConsulta:', editingPatient?.rawUltimaConsulta)
         const response = await fetch(`/api/pacientes/${editingPatient.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -1346,11 +1328,6 @@ fetch("/api/agendamentos?contagem=true")
           </div> {/* fecha Table Card */}
         </div> {/* fecha Main Area */}
 
-      {/* Click outside to close notifications */}
-      {showNotifications && (
-        <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
-      )}
-
       {/* Add Patient Modal */}
       <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
         <DialogContent className="sm:max-w-[520px] rounded-2xl p-0">
@@ -1560,18 +1537,5 @@ fetch("/api/agendamentos?contagem=true")
         onConfirmar={handleConfirmarVaiMarcar}
       />
     </div>
-  )
-}
-
-function ToothIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path d="M12 2C9.5 2 7.5 3.5 6.5 5.5C5.5 3.5 3.5 2 1 2V4C3.5 4 5 6 5 8C5 10 4 12 4 14C4 18 6 22 8 22C10 22 10.5 18 12 18C13.5 18 14 22 16 22C18 22 20 18 20 14C20 12 19 10 19 8C19 6 20.5 4 23 4V2C20.5 2 18.5 3.5 17.5 5.5C16.5 3.5 14.5 2 12 2Z" />
-    </svg>
   )
 }

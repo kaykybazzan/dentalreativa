@@ -20,23 +20,18 @@ interface PacienteFila {
   nome: string
   telefone: string
   ultimaConsulta: string
+  ultimaConsultaFormatada: string
   diasSemConsulta: number
   nivelRisco: string
   valorTicket: number
   status: string
   avatar: string
   avatarColor: string
-  name: string
-  phone: string
-  lastVisit: string
-  daysSince: number
   attempt: string
   attemptLabel: string
   attemptBg: string
   attemptText: string
-  message: string
   procedure: string
-  estimatedValue: number
 }
 
 export default function AutomacaoPage() {
@@ -137,7 +132,18 @@ export default function AutomacaoPage() {
       const response = await fetch("/api/pacientes/fila")
       if (response.ok) {
         const data = await response.json()
-        const mappedFila = data.map((p: any) => {
+        interface PacienteFilaAPI {
+          id: string
+          nome: string
+          telefone: string
+          ultimaConsulta: string | null
+          diasSemConsulta: number
+          nivelRisco: string
+          valorTicket: number
+          status: string
+          proximaTentativa?: number
+        }
+          const mappedFila = data.map((p: PacienteFilaAPI) => {
           const avatarColors = ["bg-[#3B82F6]", "bg-[#10B981]", "bg-[#8B5CF6]", "bg-[#F59E0B]", "bg-[#EF4444]"]
           const avatarColor = avatarColors[p.nome.length % avatarColors.length]
           const initials = p.nome?.split(" ")?.map((n: string) => n?.[0])?.join("")?.slice(0, 2)?.toUpperCase() ?? ""
@@ -145,6 +151,7 @@ export default function AutomacaoPage() {
           const lastVisit = ultimaConsulta ? ultimaConsulta.toLocaleDateString?.('pt-BR') ?? '' : ''
 
           const attemptNum =
+            p.proximaTentativa !== undefined &&
             p.proximaTentativa >= 1 &&
             p.proximaTentativa <= 3
               ? p.proximaTentativa
@@ -157,17 +164,12 @@ export default function AutomacaoPage() {
             ...p,
             avatar: initials,
             avatarColor,
-            name: p.nome,
-            phone: p.telefone,
-            lastVisit,
-            daysSince: p.diasSemConsulta,
+            ultimaConsultaFormatada: lastVisit,
             attempt: attemptNum.toString(),
             attemptLabel,
             attemptBg,
             attemptText,
-            message: "Mensagem será carregada ao enviar",
             procedure: "Consulta",
-            estimatedValue: p.valorTicket,
           }
         })
         setFila(mappedFila)
@@ -240,14 +242,10 @@ export default function AutomacaoPage() {
   const handlePacienteVoltou = async (paciente: PacienteFila) => {
     setMenuAcoes((prev) => ({ ...prev, [paciente.id]: false }))
 
-    const valorBase = paciente.estimatedValue > 0
-      ? paciente.estimatedValue
-      : paciente.valorTicket > 0
-        ? paciente.valorTicket
-        : 0
+    const valorBase = paciente.valorTicket > 0 ? paciente.valorTicket : 0
 
     const valorStr = window.prompt(
-      `Qual o valor da consulta de ${paciente.name}?\n(deixe em branco para usar R$ ${valorBase.toFixed(2).replace(".", ",")})`
+      `Qual o valor da consulta de ${paciente.nome}?\n(deixe em branco para usar R$ ${valorBase.toFixed(2).replace(".", ",")})`
     )
     if (valorStr === null) return
 
@@ -322,7 +320,7 @@ export default function AutomacaoPage() {
 
   const handleNaoContatar = async (paciente: PacienteFila) => {
     setMenuAcoes((prev) => ({ ...prev, [paciente.id]: false }))
-    if (!confirm(`Marcar ${paciente.name} como "Não contatar"? Ele sairá da fila permanentemente.`)) return
+    if (!confirm(`Marcar ${paciente.nome} como "Não contatar"? Ele sairá da fila permanentemente.`)) return
     try {
       await fetch("/api/envios/recuperado", {
         method: "POST",
@@ -476,15 +474,15 @@ export default function AutomacaoPage() {
                         {patient.avatar ?? ""}
                       </div>
                       <div>
-                        <p className="text-sm font-bold text-[#1E293B]">{patient.name ?? "-"} <span className="text-xs font-normal text-[#64748B]">({patient.attemptLabel ?? "1ª"} tentativa)</span></p>
+                       <p className="text-sm font-bold text-[#1E293B]">{patient.nome ?? "-"} <span className="text-xs font-normal text-[#64748B]">({patient.attemptLabel ?? "1ª"} tentativa)</span></p>
                         {patient.attempt === "3" && (
                           <p className="text-sm text-[#EF4444] font-medium">⚠️ Última chance</p>
                         )}
                         <div className="flex items-center gap-2">
                           <span className="text-sm text-[#64748B]">
-                            {formatarTelefoneExibicao(patient.phone) ?? "-"}
+                            {formatarTelefoneExibicao(patient.telefone) ?? "-"}
                           </span>
-                          {!validarTelefone(patient.phone) && (
+                          {!validarTelefone(patient.telefone) && (
                             <span className="text-xs bg-[#FEF2F2] text-[#EF4444] px-2 py-0.5 rounded-full font-medium">
                               Número inválido
                             </span>
@@ -494,12 +492,12 @@ export default function AutomacaoPage() {
                     </div>
 
                     <div>
-                      <p className="text-sm text-[#64748B]">{patient.lastVisit ?? "-"}</p>
+                      <p className="text-sm text-[#64748B]">{patient.ultimaConsultaFormatada ?? "-"}</p>
                     </div>
 
                     <div>
                       <p className={`text-sm font-bold ${getDaysSinceColor(patient.nivelRisco ?? "ok")}`}>
-                        {patient.daysSince ?? 0} dias
+                        {patient.diasSemConsulta ?? 0} dias
                       </p>
                     </div>
 
@@ -515,7 +513,7 @@ export default function AutomacaoPage() {
 
                     <div>
                       <p className="text-sm font-medium text-[#1E293B]">
-                        {patient.estimatedValue?.toLocaleString?.('pt-BR', { style: 'currency', currency: 'BRL' }) ?? "R$ 0,00"}
+                        {patient.valorTicket?.toLocaleString?.('pt-BR', { style: 'currency', currency: 'BRL' }) ?? "R$ 0,00"}
                       </p>
                     </div>
 
@@ -575,8 +573,8 @@ export default function AutomacaoPage() {
                       ) : (
                         <Button
                           onClick={() => handleEnviarWhatsApp(patient)}
-                          disabled={enviando[patient.id] || enviados[patient.id] || !validarTelefone(patient.phone)}
-                          className={`bg-[#25D366] hover:bg-[#1fad52] text-white text-sm h-8 px-3 flex items-center gap-1.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed ${!validarTelefone(patient.phone) ? "opacity-40 cursor-not-allowed" : ""}`}
+                          disabled={enviando[patient.id] || enviados[patient.id] || !validarTelefone(patient.telefone)}
+                          className={`bg-[#25D366] hover:bg-[#1fad52] text-white text-sm h-8 px-3 flex items-center gap-1.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed ${!validarTelefone(patient.telefone) ? "opacity-40 cursor-not-allowed" : ""}`}
                         >
                           <svg viewBox="0 0 24 24" width="14" height="14" fill="white">
                             <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
@@ -817,7 +815,7 @@ export default function AutomacaoPage() {
         aberto={modalVaiMarcarAberto}
         paciente={pacienteModalVaiMarcar ? {
           id: pacienteModalVaiMarcar.id,
-          nome: pacienteModalVaiMarcar.name,
+          nome: pacienteModalVaiMarcar.nome,
           procedimento: pacienteModalVaiMarcar.procedure,
         } : null}
         onFechar={() => {

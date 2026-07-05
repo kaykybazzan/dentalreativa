@@ -3,24 +3,16 @@
 import { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
+import { useClickOutside } from "@/hooks/use-click-outside"
 import { 
-  LayoutDashboard,
-  Users,
-  Zap,
-  BarChart3,
-  Settings,
   Search, 
-  HelpCircle,
   TrendingUp,
   Clock,
   Send,
   AlertTriangle,
   Eye,
-  Calendar,
   ChevronDown,
-  MessageCircle,
   DollarSign,
-  LogOut,
   Bell,
   CheckCircle,
   Check,
@@ -31,14 +23,6 @@ import { Button } from "@/components/ui/button"
 import { Sidebar } from "@/components/sidebar"
 import { Input } from "@/components/ui/input"
 import AlertaConfiguracao from "@/components/AlertaConfiguracao"
-import Image from "next/image"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import {
   LineChart,
   Line,
@@ -49,82 +33,37 @@ import {
   ResponsiveContainer,
   Legend
 } from "recharts"
-import { DateRangePicker } from "@/components/date-range-picker"
 import { gerarLinkWhatsApp, construirMensagem } from "@/lib/formatarTelefone"
 
-type Patient = {
+interface Paciente {
   id: number
-  initials: string
-  name: string
-  phone: string
-  lastVisit: string
-  timeAway: string
-  timeAwayMonths: number
-  procedure: string
-  action: "lembrete" | "agendamento" | "direto"
+  nome: string
+  telefone: string
   status: string
-  avatarColor: string
-  daysSinceVisit: number
+  ultimaConsulta?: string
 }
 
-const samplePatients: Patient[] = [
-  {
-    id: 1,
-    initials: "MS",
-    name: "Maria Silva",
-    phone: "(11) 99999-9999",
-    lastVisit: "12/02/2024",
-    timeAway: "5 meses",
-    timeAwayMonths: 5,
-    procedure: "Limpeza",
-    action: "lembrete",
-    status: "em_risco",
-    avatarColor: "bg-[#3B82F6]",
-    daysSinceVisit: 150
-  },
-  {
-    id: 2,
-    initials: "JS",
-    name: "João Santos",
-    phone: "(11) 98888-8888",
-    lastVisit: "05/01/2024",
-    timeAway: "6 meses",
-    timeAwayMonths: 6,
-    procedure: "Clareamento",
-    action: "agendamento",
-    status: "em_contato",
-    avatarColor: "bg-[#10B981]",
-    daysSinceVisit: 180
-  },
-  {
-    id: 3,
-    initials: "AL",
-    name: "Ana Lima",
-    phone: "(11) 97777-7777",
-    lastVisit: "20/12/2023",
-    timeAway: "7 meses",
-    timeAwayMonths: 7,
-    procedure: "Tratamento canal",
-    action: "direto",
-    status: "sem_resposta",
-    avatarColor: "bg-[#8B5CF6]",
-    daysSinceVisit: 210
-  },
-  {
-    id: 4,
-    initials: "RP",
-    name: "Rafael Pereira",
-    phone: "(11) 96666-6666",
-    lastVisit: "15/01/2024",
-    timeAway: "6 meses",
-    timeAwayMonths: 6,
-    procedure: "Implante",
-    action: "agendamento",
-    status: "recuperado",
-    avatarColor: "bg-[#F59E0B]",
-    daysSinceVisit: 180
+interface PacienteUrgente {
+  id: number
+  nome: string
+  telefone: string
+  diasSemConsulta: number
+  nivelRisco: "critico" | "alto"
+  valorTicket: number
+}
+
+interface DashboardData {
+  cards: {
+    emRisco: number
+    aguardandoResposta: number
+    recuperadosViaContato: number
+    receitaEmRisco: number
   }
-]
+  grafico: { month: string; emRisco: number; recuperados: number }[]
+  urgentes: PacienteUrgente[]
+  notificacoes: { tipo: string; texto: string; tempo: string }[]
+}
+
 
 const statusConfig: Record<string, { label: string; bgColor: string; textColor: string }> = {
   em_risco: { label: "Em risco", bgColor: "bg-[#FEF2F2]", textColor: "text-[#DC2626]" },
@@ -141,8 +80,8 @@ export default function DashboardPage() {
   const [activeNav, setActiveNav] = useState("dashboard")
   const [searchQuery, setSearchQuery] = useState("")
   const [showSearchDropdown, setShowSearchDropdown] = useState(false)
-  const [dados, setDados] = useState<any>(null)
-  const [todosPacientes, setTodosPacientes] = useState<any[]>([])
+  const [dados, setDados] = useState<DashboardData | null>(null)
+  const [todosPacientes, setTodosPacientes] = useState<Paciente[]>([])
   const [carregando, setCarregando] = useState(true)
   const [periodoSelecionado, setPeriodoSelecionado] = useState<"6m" | "1a" | "2a" | "custom">("6m")
   const [showCustomPicker, setShowCustomPicker] = useState(false)
@@ -155,23 +94,18 @@ export default function DashboardPage() {
   const [badgeCount, setBadgeCount] = useState(0)
   const [showWelcomeBanner, setShowWelcomeBanner] = useState(false)
 
-  const userName = session?.user?.name || "Usuário"
-  const userEmail = session?.user?.email || ""
-  const [clinicName, setClinicName] = useState("Carregando...")
-  const [clinicCity, setClinicCity] = useState("")
-  const userRole = "Administrador"
-  const userInitial = userName[0]?.toUpperCase() || "U"
+const [clinicName, setClinicName] = useState("Carregando...")
 
   useEffect(() => {
-    if (status === "loading") return
-    if (status !== "authenticated" || !session?.user) return
+  if (status === "loading") return
+  if (status !== "authenticated" || !session?.user) return
 
-    const clinicaId = session.user.clinicaId
+  const clinicaId = session.user.clinicaId
 
-    if (!clinicaId) {
-      console.warn("clinicaId não encontrado")
-      return
-    }
+  if (!clinicaId) {
+    console.warn("clinicaId não encontrado")
+    return
+  }
 
     if (typeof window !== "undefined") {
       localStorage.removeItem("onboarding_done_undefined")
@@ -189,19 +123,24 @@ export default function DashboardPage() {
 
     setActiveNav("dashboard")
 
-    fetch("/api/pacientes")
-      .then((res) => res.json())
-      .then((data) => setTodosPacientes(data))
-      .catch(() => {})
+      fetch("/api/pacientes")
+    .then((res) => res.json())
+    .then((data) => setTodosPacientes(data))
+    .catch(() => {})
 
-    fetch("/api/notificacoes")
-      .then((res) => res.json())
-      .then((data) => {
-        setNotificacoes(data.notificacoes || [])
-        setBadgeCount(data.badgeCount || 0)
-      })
-      .catch(() => {})
-  }, [status, session?.user?.clinicaId])
+  fetch("/api/notificacoes")
+    .then((res) => res.json())
+    .then((data) => {
+      setNotificacoes(data.notificacoes || [])
+      setBadgeCount(data.badgeCount || 0)
+    })
+    .catch(() => {})
+
+  fetch("/api/clinica")
+    .then((res) => res.json())
+    .then((data) => { if (data?.nome) setClinicName(data.nome) })
+    .catch(() => {})
+}, [status, session?.user?.clinicaId])
 
   useEffect(() => {
     setDados(null)
@@ -221,67 +160,38 @@ export default function DashboardPage() {
 
   const dadosGrafico = Array.isArray(dados?.grafico) ? dados.grafico : []
 
-  const notifications: { id: number; type: string; text: string; time: string }[] = (
-    dados?.notificacoes ?? []
-  ).map((n: { tipo: string; texto: string; tempo: string }, i: number) => ({
-    id: i,
-    type: n.tipo === "risco" ? "alert" : "whatsapp",
-    text: n.texto,
-    time: n.tempo,
-  }))
+  useClickOutside(".search-container", () => setShowSearchDropdown(false))
+  useClickOutside(customPickerRef, () => setShowCustomPicker(false))
 
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement
-      if (!target.closest(".search-container")) {
-        setShowSearchDropdown(false)
-      }
+useEffect(() => {
+  const handleEscape = (e: KeyboardEvent) => {
+    if (e.key === "Escape") setShowSearchDropdown(false)
+  }
+  document.addEventListener("keydown", handleEscape)
+  return () => document.removeEventListener("keydown", handleEscape)
+}, [])
+
+useEffect(() => {
+  const handleClickOutsideNotif = (e: MouseEvent) => {
+    const target = e.target as HTMLElement
+    if (notifRef.current && !notifRef.current.contains(target) && !target.closest("#notif-button")) {
+      setShowNotifications(false)
     }
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [])
+  }
+  document.addEventListener("mousedown", handleClickOutsideNotif)
+  return () => document.removeEventListener("mousedown", handleClickOutsideNotif)
+}, [])
 
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (customPickerRef.current && !customPickerRef.current.contains(e.target as Node)) {
-        setShowCustomPicker(false)
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [])
-
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setShowSearchDropdown(false)
-      }
-    }
-    document.addEventListener("keydown", handleEscape)
-    return () => document.removeEventListener("keydown", handleEscape)
-  }, [])
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement
-      if (notifRef.current && !notifRef.current.contains(target) && !target.closest("#notif-button")) {
-        setShowNotifications(false)
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [])
-
-  const handleLogout = () => {
+const handleLogout = () => {
     router.push("/")
   }
 
   const searchResults = searchQuery.trim() === ""
-    ? []
-    : todosPacientes.filter((p: any) =>
-        p.nome?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.telefone?.includes(searchQuery)
-      )
+  ? []
+  : todosPacientes.filter((p) =>
+      p.nome?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.telefone?.includes(searchQuery)
+    )
 
   const handleWhatsApp = (phone: string, name: string) => {
     const mensagem = construirMensagem(
@@ -296,33 +206,6 @@ export default function DashboardPage() {
     }
     window.open(link, "_blank")
   }
-
-  const getActionBadge = (action: string) => {
-    switch (action) {
-      case "lembrete":
-        return { label: "Enviar lembrete", className: "bg-[#DBEAFE] text-[#1E40AF]" }
-      case "agendamento":
-        return { label: "Oferecer agendamento", className: "bg-[#D1FAE5] text-[#065F46]" }
-      case "direto":
-        return { label: "Contato direto", className: "bg-[#FEE2E2] text-[#991B1B]" }
-      default:
-        return { label: "Lembrete", className: "bg-muted text-muted-foreground" }
-    }
-  }
-
-  const getPriorityColor = (months: number) => {
-    if (months > 6) return "bg-[#EF4444]"
-    if (months >= 4) return "bg-[#F59E0B]"
-    return "bg-[#FBBF24]"
-  }
-
-  const navItems = [
-    { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { id: "patients", label: "Pacientes", icon: Users },
-    { id: "automation", label: "Central de Envios", icon: Zap },
-    { id: "reports", label: "Relatórios", icon: BarChart3 },
-    { id: "settings", label: "Configurações", icon: Settings }
-  ]
 
   return (
     <div className="flex h-screen bg-[#F8FAFC]">
@@ -359,7 +242,7 @@ export default function DashboardPage() {
 
               {/* Search Results Dropdown */}
               {showSearchDropdown && (
-                <div className="absolute top-12 left-0 right-0 bg-white rounded-xl border border-[#E2E8F0] shadow-lg z-9999 max-h-96 overflow-y-auto">
+                <div className="absolute top-12 left-0 right-0 bg-white rounded-xl border border-[#E2E8F0] shadow-lg z-[9999] max-h-96 overflow-y-auto">
                   {searchResults.length === 0 ? (
                     <div className="p-8 flex flex-col items-center gap-2">
                       <Search className="h-10 w-10 text-[#94A3B8]" />
@@ -367,7 +250,7 @@ export default function DashboardPage() {
                     </div>
                   ) : (
                     <div className="divide-y divide-[#E2E8F0]">
-                      {searchResults.map((patient: any) => {
+                      {searchResults.map((patient) => {
                         const config = statusConfig[patient.status] ?? { label: "Ativo", bgColor: "bg-[#F0FDF4]", textColor: "text-[#15803D]" }
 
                         // FIX: "hoje" no fuso de São Paulo — evita 1 dia a menos por UTC
@@ -934,7 +817,7 @@ export default function DashboardPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E2E8F0]">
-                  {dados?.urgentes?.map((p: any) => (
+                  {dados?.urgentes?.map((p) => (
                     <tr key={p.id} className="hover:bg-[#F8FAFC] transition-colors">
                       <td className="px-6 py-4">
                         <span className="text-sm font-medium text-[#1E293B]">{p.nome}</span>
@@ -990,44 +873,6 @@ export default function DashboardPage() {
   )
 }
 
-
-function DollarIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <circle cx="12" cy="12" r="10" />
-      <path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8" />
-      <path d="M12 18V6" />
-    </svg>
-  )
-}
-
-function MessageClockIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-      <circle cx="12" cy="12" r="3" />
-      <path d="M12 10v2l1.5 1" />
-    </svg>
-  )
-}
 
 function WhatsAppIcon({ className }: { className?: string }) {
   return (

@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Pool } from 'pg'
 import bcrypt from 'bcryptjs'
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-})
+import { pool } from '@/lib/db'
 
 export async function POST(req: NextRequest) {
   try {
@@ -22,20 +17,32 @@ export async function POST(req: NextRequest) {
 
     const senhaHash = await bcrypt.hash(senha, 10)
 
-    const clinica = await pool.query(
-      `INSERT INTO "Clinica" (nome, cidade, telefone) VALUES ($1, $2, $3) RETURNING id`,
-      [nomeDaClinica, cidade || null, telefone || null]
-    )
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
 
-    const clinicaId = clinica.rows[0].id
+      const clinica = await client.query(
+        `INSERT INTO "Clinica" (nome, cidade, telefone) VALUES ($1, $2, $3) RETURNING id`,
+        [nomeDaClinica, cidade || null, telefone || null]
+      )
+      const clinicaId = clinica.rows[0].id
 
-    await pool.query(
-      `INSERT INTO "Usuario" ("clinicaId", nome, email, "senhaHash") VALUES ($1, $2, $3, $4)`,
-      [clinicaId, nome, email, senhaHash]
-    )
+      await client.query(
+        `INSERT INTO "Usuario" ("clinicaId", nome, email, "senhaHash") VALUES ($1, $2, $3, $4)`,
+        [clinicaId, nome, email, senhaHash]
+      )
 
-    return NextResponse.json({ success: true })
-  } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 })
+      await client.query('COMMIT')
+      return NextResponse.json({ success: true })
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
+  } catch (err) {
+    console.error("Erro ao cadastrar usuário/clínica:", err)
+    return NextResponse.json({ success: false, error: "Erro ao processar cadastro" }, { status: 500 })
   }
 }
+

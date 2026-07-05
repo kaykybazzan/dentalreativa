@@ -13,16 +13,7 @@ export async function POST(req: Request) {
 
     if (!Array.isArray(pacientes)) {
       return Response.json({ error: "Formato inválido: esperado array de pacientes" }, { status: 400 })
-    }
-
-    console.log("📋 Primeiros 3 pacientes recebidos:", 
-      pacientes.slice(0, 3).map(p => ({
-        nome: p.nome,
-        telefone: p.telefone,
-        ultimaConsulta: p.ultimaConsulta,
-        tipoData: typeof p.ultimaConsulta
-      }))
-    )
+    } 
 
     const clinicaResult = await pool.query(
       `SELECT c.id FROM "Clinica" c
@@ -41,23 +32,17 @@ export async function POST(req: Request) {
     let incompletos = 0
 
     for (const p of pacientes) {
-
-      console.log("💰 Valor recebido:", p.valorTicket, p.valor_ticket, p.valorUltimaConsulta)
-      const telefoneLimpo = String(p.telefone ?? "").replace(/\D/g, "")
+  const telefoneLimpo = String(p.telefone ?? "").replace(/\D/g, "")
       const nomeValido = String(p.nome ?? "").trim()
 
       const valorRaw = p.valor_ticket ?? p.valorTicket ?? p.valorUltimaConsulta ?? null
       const valorTicket = valorRaw ? parseFloat(String(valorRaw)) : null
       
-      // Validar data — se vier inválida, salvar como null
       let dataValida: string | null = null;
       if (p.ultimaConsulta && p.ultimaConsulta !== "") {
-        // Verificar se é uma data válida antes de mandar para o banco
         const dataTestada = new Date(p.ultimaConsulta);
         if (!isNaN(dataTestada.getTime())) {
           dataValida = p.ultimaConsulta;
-        } else {
-          console.log(`⚠️ Data inválida ignorada: "${p.ultimaConsulta}" para paciente "${nomeValido}"`);
         }
       }
 
@@ -67,14 +52,12 @@ export async function POST(req: Request) {
         incompletos++;
       }
 
-      // Sem telefone — inserir como incompleto com telefone placeholder
       if (!telefoneLimpo) {
         await pool.query(
           `INSERT INTO "Paciente" ("clinicaId", nome, telefone, "ultimaConsulta", "valorUltimaConsulta", "dadosIncompletos", status)
-           VALUES ($1, $2, $3, $4::date, $5, $6, 'ativo')`,
+          VALUES ($1, $2, $3, $4::date, $5, $6, 'ativo')`,
           [clinicaId, nomeValido || "Sem nome", `incompleto_${Date.now()}`, dataValida, valorTicket, true]
         )
-        incompletos++
         continue
       }
 

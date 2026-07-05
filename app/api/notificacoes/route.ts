@@ -18,7 +18,16 @@ export async function GET() {
     }
     const clinicaId = userRes.rows[0].clinicaId
 
-    const notificacoes: any[] = []
+    type Notificacao =
+  | { id: string; tipo: "resumo"; titulo: string; emRisco: number; aguardandoContato: number; receitaRecuperavel: number }
+  | { id: string; tipo: "critico"; pacienteId: number; pacienteNome: string; dias: number; valor: number }
+  | { id: string; tipo: "critico_mais"; total: number; restantes: number }
+  | { id: string; tipo: "followup"; pacienteId: number; pacienteNome: string; tentativa: number; diasSemResposta: number }
+  | { id: string; tipo: "followup_mais"; total: number; restantes: number }
+  | { id: string; tipo: "recuperado"; pacienteId: number; pacienteNome: string; valor: number; diasRecuperado: number }
+  | { id: string; tipo: "recuperado_mais"; total: number; restantes: number }
+
+  const notificacoes: Notificacao[] = []
 
     // Buscar configuração de risco e mensagens da clínica
     const configRes = await pool.query(
@@ -37,24 +46,24 @@ export async function GET() {
       `SELECT
         COUNT(*) FILTER (WHERE
           "ultimaConsulta" IS NOT NULL AND
-          DATE_PART('day', NOW() - "ultimaConsulta") >= ${diasRiscoMedio} AND
+          DATE_PART('day', NOW() - "ultimaConsulta") >= $2 AND
           status::text NOT IN ('recuperado', 'nao_contatar')
         ) AS em_risco,
         COUNT(*) FILTER (WHERE
           status::text = 'ativo' AND
           "ultimaConsulta" IS NOT NULL AND
-          DATE_PART('day', NOW() - "ultimaConsulta") >= ${diasRiscoMedio} AND
+          DATE_PART('day', NOW() - "ultimaConsulta") >= $2 AND
           "tentativaAtual" = 0
         ) AS aguardando_contato,
         COALESCE(SUM(
           CASE WHEN "ultimaConsulta" IS NOT NULL AND
-            DATE_PART('day', NOW() - "ultimaConsulta") >= ${diasRiscoMedio} AND
+            DATE_PART('day', NOW() - "ultimaConsulta") >= $2 AND
             status::text NOT IN ('recuperado', 'nao_contatar')
           THEN "valorUltimaConsulta" ELSE 0 END
         ), 0) AS receita_recuperavel
       FROM "Paciente"
       WHERE "clinicaId" = $1`,
-      [clinicaId]
+      [clinicaId, diasRiscoMedio]
     )
 
     const resumo = resumoRes.rows[0]
@@ -72,10 +81,10 @@ export async function GET() {
       `SELECT COUNT(*) as total FROM "Paciente"
       WHERE "clinicaId" = $1
         AND "ultimaConsulta" IS NOT NULL
-        AND DATE_PART('day', NOW() - "ultimaConsulta") >= ${diasRiscoCritico}
+        AND DATE_PART('day', NOW() - "ultimaConsulta") >= $2
         AND status::text NOT IN ('recuperado', 'nao_contatar')
         AND "tentativaAtual" = 0`,
-      [clinicaId]
+      [clinicaId, diasRiscoCritico]
     )
     const totalCriticos = parseInt(totalCriticosRes.rows[0].total)
 
@@ -86,12 +95,12 @@ export async function GET() {
       FROM "Paciente"
       WHERE "clinicaId" = $1
         AND "ultimaConsulta" IS NOT NULL
-        AND DATE_PART('day', NOW() - "ultimaConsulta") >= ${diasRiscoCritico}
+        AND DATE_PART('day', NOW() - "ultimaConsulta") >= $2
         AND status::text NOT IN ('recuperado', 'nao_contatar')
         AND "tentativaAtual" = 0
       ORDER BY "ultimaConsulta" ASC 
       LIMIT 3`,
-      [clinicaId]
+      [clinicaId, diasRiscoCritico]
     )
 
     criticosRes.rows.forEach((p) => {

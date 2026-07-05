@@ -15,7 +15,6 @@ import {
   Check,
   Reply,
   Users,
-  X
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -30,18 +29,47 @@ import {
 import {
   AreaChart,
   Area,
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from "recharts"
 import { gerarLinkWhatsApp, construirMensagem } from "@/lib/formatarTelefone"
 
 type Period = "7d" | "30d" | "90d" | "custom"
+
+interface RelatorioData {
+  metricas: {
+    receitaRecuperada: number
+    receitaEmRisco: number
+    totalEspontaneos: number
+    tempoMedioRetorno: number
+    taxaSucesso: string
+    totalContatados: number
+    totalEnvios: number
+    totalPacientes: number
+    totalAtivos: number
+    totalRecuperados: number
+  }
+  funil: {
+    emRisco: number
+    contatados: number
+    recuperados: number
+  }
+  evolucaoMensal: {
+    mes: string
+    total_envios: number
+    recuperados: number
+  }[]
+  pacientesEmRisco: {
+    id: number
+    nome: string
+    telefone: string
+    diasSemConsulta: number
+    valorTicket: number
+  }[]
+}
 
 export default function ReportsPage() {
   const router = useRouter()
@@ -59,7 +87,7 @@ export default function ReportsPage() {
   const [toast, setToast] = useState<{ show: boolean; message: string }>({ show: false, message: "" })
   
   // API data state
-  const [dados, setDados] = useState<any>(null)
+  const [dados, setDados] = useState<RelatorioData | null>(null)
   const [carregando, setCarregando] = useState(true)
   const [exportando, setExportando] = useState(false)
   
@@ -77,8 +105,6 @@ export default function ReportsPage() {
   const [messageText, setMessageText] = useState("")
 
 
-
-// useEffect 2 — relatórios (separado, sem nenhum outro dentro)
 useEffect(() => {
   setCarregando(true)
   let url = `/api/relatorios?periodo=${period}`
@@ -124,13 +150,8 @@ useEffect(() => {
         setExportando(false)
       }
     } else {
-      // PDF export not implemented
-      setExportSpinner(type)
-      setTimeout(() => {
-        setExportSpinner(null)
-        showToast("Exportação PDF não implementada")
-      }, 1000)
-    }
+  showToast("Exportação em PDF em breve")
+}
   }
 
   const openMessageModal = (patientName: string, daysSince: number, phone: string) => {
@@ -554,7 +575,7 @@ useEffect(() => {
 
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={carregando ? [] : (dados?.evolucaoMensal ?? []).map((item: any) => ({
+                <AreaChart data={carregando ? [] : (dados?.evolucaoMensal ?? []).map((item) => ({
                   month: item.mes,
                   contatados: item.total_envios,
                   recuperados: item.recuperados
@@ -665,7 +686,7 @@ useEffect(() => {
                     <td colSpan={5} className="py-8 text-center text-[#64748B]">Nenhum paciente em risco</td>
                   </tr>
                 ) : (
-                  (dados?.pacientesEmRisco ?? []).slice(0, 5).map((p: any, idx: number) => (
+                  (dados?.pacientesEmRisco ?? []).slice(0, 5).map((p, idx) => (
                     <tr key={p.id ?? idx} className="border-b border-[#E2E8F0] last:border-0 hover:bg-[#F8FAFC] transition-colors">
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-3">
@@ -771,18 +792,6 @@ useEffect(() => {
   )
 }
 
-function ToothIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path d="M12 2C9.5 2 7.5 3.5 6.5 5.5C5.5 3.5 3.5 2 1 2V4C3.5 4 5 6 5 8C5 10 4 12 4 14C4 18 6 22 8 22C10 22 10.5 18 12 18C13.5 18 14 22 16 22C18 22 20 18 20 14C20 12 19 10 19 8C19 6 20.5 4 23 4V2C20.5 2 18.5 3.5 17.5 5.5C16.5 3.5 14.5 2 12 2Z" />
-    </svg>
-  )
-}
 
 function WhatsAppIcon({ className }: { className?: string }) {
   return (

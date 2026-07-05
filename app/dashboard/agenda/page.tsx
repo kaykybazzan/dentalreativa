@@ -4,6 +4,8 @@ import { useEffect, useState, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Sidebar } from "@/components/sidebar"
 import { CheckCircle, X, CalendarDays, MoreHorizontal } from "lucide-react"
+import { gerarLinkWhatsApp } from "@/lib/formatarTelefone"
+
 
 type StatusAgendamento = "agendado" | "confirmado" | "compareceu" | "nao_compareceu" | "cancelado"
 
@@ -35,14 +37,6 @@ function adicionarDias(iso: string, dias: number) {
 function formatarBR(iso: string) {
   const [a, m, d] = iso.split("-")
   return `${d}/${m}/${a}`
-}
-
-function gerarWA(tel: string | null | undefined, msg: string) {
-  if (!tel) return null
-  const d = tel.replace(/\D/g, "")
-  if (d.length < 10) return null
-  const c = d.startsWith("55") ? d : `55${d}`
-  return `https://wa.me/${c}?text=${encodeURIComponent(msg)}`
 }
 
 export default function AgendaPage() {
@@ -77,9 +71,17 @@ export default function AgendaPage() {
     setCarregando(true)
     try {
       const res = await fetch("/api/agendamentos", { cache: "no-store" })
-      if (res.ok) setItens(await res.json())
-    } catch {}
-    finally { setCarregando(false) }
+      if (res.ok) {
+        setItens(await res.json())
+      } else {
+        mostrarToast("Erro ao carregar a agenda.", false)
+      }
+    } catch (error) {
+      console.error("Erro ao carregar agenda:", error)
+      mostrarToast("Erro ao carregar a agenda.", false)
+    } finally {
+      setCarregando(false)
+    }
   }
 
   useEffect(() => { carregar() }, [])
@@ -91,7 +93,7 @@ export default function AgendaPage() {
 
   const itensSemana = useMemo(
     () => itens.filter(i => i.dataReferencia > hojeStr && i.dataReferencia <= seteDiasStr),
-    [itens, hojeStr]
+    [itens, hojeStr, seteDiasStr]
   )
 
   // Lógica do calendário
@@ -179,9 +181,11 @@ export default function AgendaPage() {
           valorConsulta: valor.trim() ? parseFloat(valor.replace(",", ".")) : null,
         }),
       })
-      res.ok
-        ? mostrarToast("Paciente recuperado!")
-        : mostrarToast("Erro ao atualizar.", false)
+      if (res.ok) {
+        mostrarToast("Paciente recuperado!")
+      } else {
+        mostrarToast("Erro ao atualizar.", false)
+      }
       return res.ok
     })
   }
@@ -534,7 +538,7 @@ function CardConsulta({
   const horarioFmt = item.horario ? item.horario.slice(0, 5) : ""
 
   const msgWA = `Olá ${primeiroNome}, passando para confirmar sua consulta de ${dataFmt}${horarioFmt ? ` às ${horarioFmt}` : ""}. Você confirma?`
-  const waLink = gerarWA(item.pacienteTelefone, msgWA)
+  const waLink = gerarLinkWhatsApp(item.pacienteTelefone, msgWA)
 
   const initials = item.pacienteNome.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase()
 

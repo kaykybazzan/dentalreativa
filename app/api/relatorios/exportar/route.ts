@@ -16,16 +16,19 @@ export async function GET() {
       [session.user.email]
     );
     const clinicaId = clinicaResult.rows[0]?.id;
+    if (!clinicaId) {
+      return Response.json({ error: "Clínica não encontrada" }, { status: 404 });
+    }
 
     // Buscar todos os pacientes com suas tentativas de contato
     const result = await pool.query(
       `SELECT 
-         p.nome,
-         p.telefone,
-         p."ultimaConsulta",
-         p.status,
-         p.dadosIncompletos,
-         p."valorUltimaConsulta",
+          p.nome,
+          p.telefone,
+          p."ultimaConsulta",
+          p.status,
+          p."dadosIncompletos",
+          p."valorUltimaConsulta",
          COUNT(ca.id) as total_tentativas,
          MAX(ca."criadoEm") as ultimo_contato,
          SUM(ca.valor_recuperado) as valor_recuperado
@@ -51,16 +54,20 @@ export async function GET() {
       "Valor Recuperado (R$)",
     ].join(",");
 
+    function escaparCampoCSV(valor: string | number): string {
+      return `"${String(valor).replace(/"/g, '""')}"`;
+    }
+
     const linhas = result.rows.map((p) => [
-      `"${p.nome ?? ""}"`,
-      `"${p.telefone ?? ""}"`,
-      `"${p.ultimaConsulta ? new Date(p.ultimaConsulta).toLocaleDateString("pt-BR") : ""}"`,
-      `"${p.status ?? ""}"`,
-      `"${p.dadosIncompletos ? "Sim" : "Não"}"`,
-      `"${parseFloat(p.valorUltimaConsulta || 0).toFixed(2)}"`,
-      `"${p.total_tentativas ?? 0}"`,
-      `"${p.ultimo_contato ? new Date(p.ultimo_contato).toLocaleDateString("pt-BR") : ""}"`,
-      `"${parseFloat(p.valor_recuperado || 0).toFixed(2)}"`,
+      escaparCampoCSV(p.nome ?? ""),
+      escaparCampoCSV(p.telefone ?? ""),
+      escaparCampoCSV(p.ultimaConsulta ? new Date(p.ultimaConsulta).toLocaleDateString("pt-BR") : ""),
+      escaparCampoCSV(p.status ?? ""),
+      escaparCampoCSV(p.dadosIncompletos ? "Sim" : "Não"),
+      escaparCampoCSV(parseFloat(p.valorUltimaConsulta || 0).toFixed(2)),
+      escaparCampoCSV(p.total_tentativas ?? 0),
+      escaparCampoCSV(p.ultimo_contato ? new Date(p.ultimo_contato).toLocaleDateString("pt-BR") : ""),
+      escaparCampoCSV(parseFloat(p.valor_recuperado || 0).toFixed(2)),
     ].join(","));
 
     const csv = [cabecalho, ...linhas].join("\n");

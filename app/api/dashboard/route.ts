@@ -3,6 +3,16 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 import { pool } from "@/lib/db"
 import { aplicarRisco } from "@/lib/calcularRisco"
 
+function rowsParaMapaDeContagem(
+  rows: { total: string }[],
+  getLabel: (row: any) => string
+): Record<string, number> {
+  return rows.reduce((acc: Record<string, number>, row) => {
+    acc[getLabel(row)] = parseInt(row.total) || 0
+    return acc
+  }, {})
+}
+
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.email) {
@@ -15,34 +25,8 @@ export async function GET(req: Request) {
     const dataInicio = searchParams.get("dataInicio")
     const dataFim = searchParams.get("dataFim")
 
-    // Calcular intervalo e agrupamento baseado no período
-    let intervaloSQL: string
-    let agrupamento: string // 'month' ou 'quarter'
-
     if (periodo === "custom" && dataInicio && dataFim) {
-      // Converter YYYY-MM-DD para Date para calcular diferença
-      const from = new Date(dataInicio + "T00:00:00")
-      const to = new Date(dataFim + "T00:00:00")
-      const diffDias = Math.ceil((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24))
-
-      if (diffDias <= 14) {
-        agrupamento = "day"
-      } else if (diffDias <= 60) {
-        agrupamento = "week"
-      } else {
-        agrupamento = "month"
-      }
-      intervaloSQL = "" // não usa intervalo, usa datas direto
-    } else {
-      const intervaloMap: Record<string, string> = {
-        "6m": "6 months",
-        "1a": "12 months",
-        "2a": "24 months",
-      }
-      intervaloSQL = intervaloMap[periodo] || "6 months"
-      agrupamento = "month"
-    }
-
+}
     // Buscar todos os pacientes da clínica
     const result = await pool.query(
       `SELECT p.* FROM "Paciente" p
@@ -202,17 +186,14 @@ export async function GET(req: Request) {
         }
       }
 
-      const emRiscoPorPeriodo = emRiscoResult.rows.reduce((acc: any, row: any) => {
-        const label = formatLabel(new Date(row.periodo))
-        acc[label] = parseInt(row.total) || 0
-        return acc
-      }, {})
+      interface ContagemPorPeriodo {
+        periodo: string
+        total: string
+      }
 
-      const recuperadosPorPeriodo = recuperadosResult.rows.reduce((acc: any, row: any) => {
-        const label = formatLabel(new Date(row.periodo))
-        acc[label] = parseInt(row.total) || 0
-        return acc
-      }, {})
+      const emRiscoPorPeriodo = rowsParaMapaDeContagem(emRiscoResult.rows, (row) => formatLabel(new Date(row.periodo)))
+
+      const recuperadosPorPeriodo = rowsParaMapaDeContagem(recuperadosResult.rows, (row) => formatLabel(new Date(row.periodo)))
 
       graficoFormatado = periodos.map((p) => ({
         month: p.month,
@@ -263,15 +244,9 @@ export async function GET(req: Request) {
       )
 
       // Montar graficoFormatado preenchendo zeros
-      const emRiscoPorMes = emRiscoResult.rows.reduce((acc: any, row: any) => {
-        acc[row.month] = parseInt(row.total) || 0
-        return acc
-      }, {})
+      const emRiscoPorMes = rowsParaMapaDeContagem(emRiscoResult.rows, (row) => row.month)
 
-      const recuperadosPorMes = recuperadosResult.rows.reduce((acc: any, row: any) => {
-        acc[row.month] = parseInt(row.total) || 0
-        return acc
-      }, {})
+      const recuperadosPorMes = rowsParaMapaDeContagem(recuperadosResult.rows, (row) => row.month)
 
       graficoFormatado = mesesPeriodo.map((mes) => ({
         month: mes.month,

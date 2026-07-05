@@ -12,7 +12,7 @@ export interface PacienteImportado {
 }
 
 // Converte data de qualquer formato para AAAA-MM-DD
-function normalizarData(valor: any): string | null {
+function normalizarData(valor: string | number | null | undefined): string | null {
   if (!valor || String(valor).trim() === "") return null;
 
   // Se for número — serial do Excel (ex: 45123)
@@ -32,7 +32,7 @@ function normalizarData(valor: any): string | null {
 
   const str = String(valor).trim();
 
-  // Formato DD/MM/AAAA ou MM/DD/AAAA (americano gerado pelo xlsx)
+// Formato DD/MM/AAAA ou MM/DD/AAAA (americano gerado pelo xlsx)
   if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(str)) {
     const [a, b, ano] = str.split("/");
     const numA = parseInt(a);
@@ -54,12 +54,6 @@ function normalizarData(valor: any): string | null {
   if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(str)) {
     const [dia, mes, ano] = str.split("-");
     return `${ano}-${mes.padStart(2, "0")}-${dia.padStart(2, "0")}`;
-  }
-
-  // Formato MM/DD/AAAA (padrão americano)
-  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(str)) {
-    const partes = str.split("/");
-    return `${partes[2]}-${partes[0].padStart(2, "0")}-${partes[1].padStart(2, "0")}`;
   }
 
   // Já está no formato AAAA-MM-DD
@@ -179,9 +173,6 @@ export async function parsearArquivoPacientes(
     linhas = linhasRaw
   }
 
-  console.log(`📋 Total de linhas lidas: ${linhas.length}`);
-  console.log("📋 Exemplo da primeira linha:", linhas[0]);
-
   return linhas
     .filter((linha) => {
       // Ignorar linhas completamente vazias
@@ -229,7 +220,8 @@ export async function parsearArquivoPacientes(
         linhaNormalizada["data_atendimento"] ||
         "";
 
-      const ultimaConsulta = validarDataNaoFutura(normalizarData(dataRaw));
+      const dataOriginal = normalizarData(dataRaw);
+      const ultimaConsulta = validarDataNaoFutura(dataOriginal);
 
       // Buscar valor ticket — aceitar variações
       const valorRaw =
@@ -243,7 +235,6 @@ export async function parsearArquivoPacientes(
       const valorTicket = valorRaw ? parseFloat(String(valorRaw).replace(/[^\d.,]/g, "").replace(",", ".")) || null : null;
 
       // Verificar se a data original existia mas foi rejeitada por ser futura
-      const dataOriginal = normalizarData(dataRaw);
       const dataFuturaRejeitada = dataOriginal !== null && ultimaConsulta === null;
 
       return {
